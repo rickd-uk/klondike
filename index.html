@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Klondike Solitaire – Traditional Card Style</title>
+  <title>Klondike Solitaire – Traditional Card Style with Auto-Foundation</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -58,7 +58,7 @@
       height: 190px;
       border-radius: 10px;
       position: absolute;
-      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
       user-select: none;
       cursor: pointer;
       overflow: hidden;
@@ -69,13 +69,7 @@
       border: 1px solid #444;
     }
     .face-down {
-      background: repeating-linear-gradient(
-        45deg,
-        #1e3c72,
-        #1e3c72 5px,
-        #2a5298 5px,
-        #2a5298 10px
-      );
+      background: repeating-linear-gradient(45deg, #1e3c72, #1e3c72 5px, #2a5298 5px, #2a5298 10px);
       border: 1px solid #000;
     }
     .card-face {
@@ -111,6 +105,11 @@
       font-size: 24px;
       line-height: 1;
     }
+    /* Optional sprite styling */
+    .card.sprite {
+      border: none;
+      box-shadow: none;
+    }
   </style>
 </head>
 <body>
@@ -136,8 +135,32 @@
     </div>
   </div>
   <script>
-    const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+    // --- Sprite Sheet Preloading and Configuration ---
+    let useSprite = false;
+    const cardSprite = new Image();
+    cardSprite.onload = function() {
+      useSprite = true;
+      // Re-render the game so that the sprite sheet is used.
+      renderGame();
+    };
+    cardSprite.onerror = function() {
+      useSprite = false;
+    };
+    cardSprite.src = "playingcards_standard.png";
+
+    // Here we want the sprite-based cards to fill the original containers:
+    // Each card should be 140px by 190px.
+    const cardWidth = 140;
+    const cardHeight = 190;
+    // The sprite sheet is arranged as 14 columns and 4 rows.
+    // To scale each cell so that it becomes 140x190, the overall background size must be:
+    const spriteSheetWidth = 14 * cardWidth;   // 1960px
+    const spriteSheetHeight = 4 * cardHeight;    // 760px
+
+    // --- Game Constants and Helper Functions ---
+    const SUITS = ['clubs', 'diamonds', 'hearts', 'spades'];
     const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
     function getSuitSymbol(suit) {
       switch(suit) {
         case 'hearts': return '♥';
@@ -271,6 +294,8 @@
       }
       return deck;
     }
+
+    // --- Game Variables ---
     let tableau = [[], [], [], [], [], [], []];
     let foundations = [
       { suit: null, cards: [] },
@@ -280,6 +305,8 @@
     ];
     let stock = [];
     let waste = [];
+
+    // --- Deal Cards ---
     function dealCards(deck) {
       let cardIndex = 0;
       for (let i = 0; i < 7; i++) {
@@ -291,48 +318,79 @@
       }
       stock = deck.slice(cardIndex);
     }
+
+    // --- Rendering Functions ---
     function renderCard(card, sourceType, pileIndex, cardIndex, draggable) {
       const cardElement = document.createElement('div');
       cardElement.classList.add('card');
-      cardElement.classList.add(card.faceUp ? 'face-up' : 'face-down');
-      if (card.faceUp) {
-        const cardFace = document.createElement('div');
-        cardFace.classList.add('card-face');
-        const topLeft = document.createElement('div');
-        topLeft.classList.add('card-corner', 'top-left');
-        topLeft.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
-        cardFace.appendChild(topLeft);
-        const bottomRight = document.createElement('div');
-        bottomRight.classList.add('card-corner', 'bottom-right');
-        bottomRight.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
-        cardFace.appendChild(bottomRight);
-        if (card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') {
-          const center = document.createElement('div');
-          center.classList.add('card-center');
-          center.textContent = getFaceCardDetail(card);
-          center.style.color = getCardColour(card.suit);
-          cardFace.appendChild(center);
+      
+      if (useSprite) {
+        cardElement.classList.add('sprite');
+        let col, row;
+        if (!card.faceUp) {
+          // For face-down cards, use the back (last column in the first row).
+          col = 13;
+          row = 0;
         } else {
-          const pipCoordinates = getPipCoordinates(card.rank);
-          pipCoordinates.forEach(pos => {
-            const pip = document.createElement('div');
-            pip.classList.add('pip');
-            pip.style.left = pos.x;
-            pip.style.top = pos.y;
-            pip.style.transform = 'translate(-50%, -50%)';
-            pip.style.color = getCardColour(card.suit);
-            pip.textContent = getSuitSymbol(card.suit);
-            cardFace.appendChild(pip);
-          });
+          // Map rank to column: A=0, 2=1, …, 10=9, J=10, Q=11, K=12.
+          const rankMap = { 'A': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '10': 9, 'J': 10, 'Q': 11, 'K': 12 };
+          col = rankMap[card.rank];
+          // Map suit to row: clubs=0, diamonds=1, hearts=2, spades=3.
+          const suitMap = { 'clubs': 0, 'diamonds': 1, 'hearts': 2, 'spades': 3 };
+          row = suitMap[card.suit];
         }
-        cardElement.appendChild(cardFace);
+        // Calculate the background position using the new dimensions.
+        const bgPosX = -(col * cardWidth) + "px";
+        const bgPosY = -(row * cardHeight) + "px";
+        cardElement.style.backgroundImage = "url('playingcards_standard.png')";
+        cardElement.style.backgroundPosition = bgPosX + " " + bgPosY;
+        cardElement.style.backgroundSize = spriteSheetWidth + "px " + spriteSheetHeight + "px";
+        cardElement.style.width = cardWidth + "px";
+        cardElement.style.height = cardHeight + "px";
+      } else {
+        // Fallback: use the built-in rendering.
+        cardElement.classList.add(card.faceUp ? 'face-up' : 'face-down');
+        if (card.faceUp) {
+          const cardFace = document.createElement('div');
+          cardFace.classList.add('card-face');
+          const topLeft = document.createElement('div');
+          topLeft.classList.add('card-corner', 'top-left');
+          topLeft.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
+          cardFace.appendChild(topLeft);
+          const bottomRight = document.createElement('div');
+          bottomRight.classList.add('card-corner', 'bottom-right');
+          bottomRight.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
+          cardFace.appendChild(bottomRight);
+          if (card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') {
+            const center = document.createElement('div');
+            center.classList.add('card-center');
+            center.textContent = getFaceCardDetail(card);
+            center.style.color = getCardColour(card.suit);
+            cardFace.appendChild(center);
+          } else {
+            const pipCoordinates = getPipCoordinates(card.rank);
+            pipCoordinates.forEach(pos => {
+              const pip = document.createElement('div');
+              pip.classList.add('pip');
+              pip.style.left = pos.x;
+              pip.style.top = pos.y;
+              pip.style.transform = 'translate(-50%, -50%)';
+              pip.style.color = getCardColour(card.suit);
+              pip.textContent = getSuitSymbol(card.suit);
+              cardFace.appendChild(pip);
+            });
+          }
+          cardElement.appendChild(cardFace);
+        }
       }
+      
       if (draggable) {
         cardElement.setAttribute("draggable", "true");
         cardElement.dataset.sourceType = sourceType;
         cardElement.dataset.pileIndex = pileIndex;
         cardElement.dataset.cardIndex = cardIndex;
         cardElement.addEventListener("dragstart", handleDragStart);
+        cardElement.addEventListener("dblclick", handleDoubleClick);
       }
       return cardElement;
     }
@@ -353,7 +411,18 @@
       stockContainer.innerHTML = '';
       if (stock.length > 0) {
         const cardBack = document.createElement('div');
-        cardBack.classList.add('card', 'face-down');
+        if (useSprite) {
+          cardBack.classList.add('sprite');
+          const bgPosX = -(13 * cardWidth) + "px";
+          const bgPosY = -(0 * cardHeight) + "px";
+          cardBack.style.backgroundImage = "url('playingcards_standard.png')";
+          cardBack.style.backgroundPosition = bgPosX + " " + bgPosY;
+          cardBack.style.backgroundSize = spriteSheetWidth + "px " + spriteSheetHeight + "px";
+          cardBack.style.width = cardWidth + "px";
+          cardBack.style.height = cardHeight + "px";
+        } else {
+          cardBack.classList.add('card', 'face-down');
+        }
         stockContainer.appendChild(cardBack);
       }
     }
@@ -383,6 +452,8 @@
       renderFoundations();
       renderTableau();
     }
+
+    // --- Drag and Drop Handlers ---
     function handleDragStart(e) {
       const dragData = {
         from: e.target.dataset.sourceType,
@@ -415,6 +486,40 @@
         renderGame();
       }
     }
+    function handleDoubleClick(e) {
+      e.stopPropagation();
+      let cardElement = e.currentTarget;
+      let sourceType = cardElement.dataset.sourceType;
+      let pileIndex = parseInt(cardElement.dataset.pileIndex);
+      let cardIndex = parseInt(cardElement.dataset.cardIndex);
+      let card;
+      if (sourceType === "tableau") {
+        card = tableau[pileIndex][cardIndex];
+      } else if (sourceType === "waste") {
+        card = waste[waste.length - 1];
+      }
+      for (let i = 0; i < foundations.length; i++) {
+        let foundationSlot = foundations[i];
+        if (isValidFoundationMove(card, foundationSlot)) {
+          if (sourceType === "tableau") {
+            tableau[pileIndex].splice(cardIndex, 1);
+            if (tableau[pileIndex].length > 0) {
+              tableau[pileIndex][tableau[pileIndex].length - 1].faceUp = true;
+            }
+          } else if (sourceType === "waste") {
+            waste.pop();
+          }
+          if (foundationSlot.cards.length === 0) {
+            foundationSlot.suit = card.suit;
+          }
+          foundationSlot.cards.push(card);
+          renderGame();
+          return;
+        }
+      }
+    }
+
+    // --- Move Validation Functions ---
     function isValidTableauMove(card, targetPile) {
       if (targetPile.length === 0) {
         return card.rank === 'K';
@@ -475,6 +580,8 @@
       }
       return false;
     }
+
+    // --- Stock Click Handler ---
     document.getElementById('stock').addEventListener('click', function() {
       if (stock.length > 0) {
         const card = stock.shift();
@@ -487,6 +594,8 @@
         renderGame();
       }
     });
+
+    // --- Game Initialization ---
     function initGame() {
       const deck = shuffleDeck(createDeck());
       dealCards(deck);
