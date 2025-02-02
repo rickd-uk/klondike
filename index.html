@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Klondike Solitaire</title>
+  <title>Klondike Solitaire – Traditional Card Style</title>
   <style>
-    /* General styling */
+    /* General page styling */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #008000;
@@ -16,17 +16,17 @@
       max-width: 1200px;
       margin: 0 auto;
     }
-    /* Top row styling */
+    /* Top row: Stock, Waste, Foundations */
     #top-row {
       display: flex;
       justify-content: space-between;
       margin-bottom: 20px;
     }
     .card-container {
-      width: 100px;
-      height: 140px;
+      width: 140px;
+      height: 190px;
       border: 1px solid #fff;
-      border-radius: 8px;
+      border-radius: 10px;
       background-color: #006400;
       position: relative;
     }
@@ -36,10 +36,10 @@
       gap: 10px;
     }
     .foundation {
-      width: 100px;
-      height: 140px;
-      border: 1px dashed #fff; /* dashed border to indicate an empty slot */
-      border-radius: 8px;
+      width: 140px;
+      height: 190px;
+      border: 1px dashed #fff;
+      border-radius: 10px;
       background-color: #006400;
       position: relative;
     }
@@ -50,54 +50,78 @@
       gap: 10px;
     }
     .tableau-pile {
-      width: 100px;
-      min-height: 140px;
+      width: 140px;
+      min-height: 190px;
       border: 1px solid #fff;
-      border-radius: 8px;
+      border-radius: 10px;
       background-color: #006400;
       position: relative;
     }
     /* Card styling */
     .card {
-      width: 100px;
-      height: 140px;
-      border-radius: 8px;
+      width: 140px;
+      height: 190px;
+      border-radius: 10px;
       position: absolute;
-      text-align: center;
-      font-size: 24px;
       box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
       user-select: none;
-      cursor: pointer;  /* hand cursor */
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 4px;
+      cursor: pointer;
+      overflow: hidden;
     }
     .face-up {
       background: linear-gradient(to bottom, #ffffff, #f0f0f0);
       border: 1px solid #444;
     }
     .face-down {
-      background: linear-gradient(to bottom, #2e2e2e, #1a1a1a);
+      /* Hashed blue backing */
+      background: repeating-linear-gradient(
+        45deg,
+        #1e3c72,
+        #1e3c72 5px,
+        #2a5298 5px,
+        #2a5298 10px
+      );
       border: 1px solid #000;
-      color: transparent;
     }
-    .card .rank {
-      font-weight: bold;
+    /* Card face layout */
+    .card-face {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      font-family: 'Georgia', serif;
+      color: black;
     }
-    .card .suit {
+    .card-corner {
+      position: absolute;
       font-size: 20px;
+      line-height: 1;
+    }
+    .card-corner.top-left {
+      top: 4px;
+      left: 4px;
+    }
+    .card-corner.bottom-right {
+      bottom: 4px;
+      right: 4px;
+      transform: rotate(180deg);
+    }
+    .card-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 50px;
+      text-align: center;
     }
   </style>
 </head>
 <body>
   <div id="game-board">
-    <!-- Top row: Stock, Waste, and Foundations -->
+    <!-- Top row: Stock, Waste, Foundations -->
     <div id="top-row">
       <div id="stock" class="card-container"></div>
       <div id="waste" class="card-container"></div>
       <div id="foundations">
-        <!-- Four foundation slots (empty until an Ace is dropped) -->
         <div class="foundation" id="foundation-0"></div>
         <div class="foundation" id="foundation-1"></div>
         <div class="foundation" id="foundation-2"></div>
@@ -118,17 +142,16 @@
 
   <script>
     /********************************************************************
-     * Klondike Solitaire – Enhanced Version with Drag & Drop and
-     * Foundation Rules Allowing Any Ace to Start a Foundation
+     * Klondike Solitaire – Enhanced Traditional Card Style Version
      ********************************************************************/
 
     // Define suits and ranks.
     const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
-    const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 
     // Helper functions.
     function getSuitSymbol(suit) {
-      switch (suit) {
+      switch(suit) {
         case 'hearts': return '♥';
         case 'diamonds': return '♦';
         case 'clubs': return '♣';
@@ -137,14 +160,34 @@
       }
     }
     function getRankValue(rank) {
-      if (rank === 'A') return 1;
-      if (rank === 'J') return 11;
-      if (rank === 'Q') return 12;
-      if (rank === 'K') return 13;
+      if(rank==='A') return 1;
+      if(rank==='J') return 11;
+      if(rank==='Q') return 12;
+      if(rank==='K') return 13;
       return parseInt(rank, 10);
     }
     function getCardColour(suit) {
-      return (suit === 'hearts' || suit === 'diamonds') ? 'red' : 'black';
+      return (suit==='hearts' || suit==='diamonds') ? 'red' : 'black';
+    }
+    // Returns detail for face cards (J, Q, K)
+    function getFaceCardDetail(card) {
+      if(card.rank === 'K'){
+        if(card.suit === 'hearts') return "⚔️"; // King of Hearts (Suicide King)
+        if(card.suit === 'spades') return "⚔️"; // King of Spades
+        if(card.suit === 'diamonds') return "🪓"; // King of Diamonds (axe)
+        if(card.suit === 'clubs') return "⚔️"; // King of Clubs
+      } else if(card.rank === 'Q'){
+        if(card.suit === 'hearts') return "🌹"; // Queen of Hearts holds a flower
+        if(card.suit === 'spades') return "🪄"; // Queen of Spades holds a scepter
+        if(card.suit === 'diamonds') return "🌹"; // Queen of Diamonds holds a flower
+        if(card.suit === 'clubs') return "🌹"; // Queen of Clubs holds a flower
+      } else if(card.rank === 'J'){
+        if(card.suit === 'hearts') return "🍃"; // Jack of Hearts holds a leaf
+        if(card.suit === 'spades') return "🏹"; // Jack of Spades holds a spear
+        if(card.suit === 'diamonds') return "🏹"; // Jack of Diamonds holds a spear (behind head)
+        if(card.suit === 'clubs') return "🪄"; // Jack of Clubs holds a staff
+      }
+      return "";
     }
 
     // Card factory.
@@ -155,8 +198,7 @@
         faceUp: false
       };
     }
-
-    // Create and shuffle a deck.
+    // Create and shuffle deck.
     function createDeck() {
       const deck = [];
       SUITS.forEach(suit => {
@@ -167,7 +209,7 @@
       return deck;
     }
     function shuffleDeck(deck) {
-      for (let i = deck.length - 1; i > 0; i--) {
+      for(let i = deck.length - 1; i > 0; i--){
         const j = Math.floor(Math.random() * (i + 1));
         [deck[i], deck[j]] = [deck[j], deck[i]];
       }
@@ -176,9 +218,9 @@
 
     // Game zones.
     let tableau = [[], [], [], [], [], [], []];
-    // Foundations: array of 4 foundation piles.
-    // Each pile starts empty with a null suit. When an Ace is dropped,
-    // the foundation "claims" that suit.
+    // Foundations: array of 4 foundation slots.
+    // Each slot is an object { suit: null, cards: [] } – when an Ace is dropped here,
+    // that foundation "claims" that suit.
     let foundations = [
       { suit: null, cards: [] },
       { suit: null, cards: [] },
@@ -202,21 +244,43 @@
     }
 
     // Render a card element.
+    // For face-up cards, we build a structure with two corners and a center.
     function renderCard(card, sourceType, pileIndex, cardIndex, draggable) {
       const cardElement = document.createElement('div');
-      cardElement.classList.add('card', card.faceUp ? 'face-up' : 'face-down');
+      cardElement.classList.add('card');
+      cardElement.classList.add(card.faceUp ? 'face-up' : 'face-down');
+
       if (card.faceUp) {
-        const rankElem = document.createElement('div');
-        rankElem.classList.add('rank');
-        rankElem.textContent = card.rank;
-        rankElem.style.color = getCardColour(card.suit);
-        const suitElem = document.createElement('div');
-        suitElem.classList.add('suit');
-        suitElem.textContent = getSuitSymbol(card.suit);
-        suitElem.style.color = getCardColour(card.suit);
-        cardElement.appendChild(rankElem);
-        cardElement.appendChild(suitElem);
+        const cardFace = document.createElement('div');
+        cardFace.classList.add('card-face');
+
+        // Top-left corner.
+        const topLeft = document.createElement('div');
+        topLeft.classList.add('card-corner', 'top-left');
+        topLeft.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
+        cardFace.appendChild(topLeft);
+
+        // Bottom-right corner.
+        const bottomRight = document.createElement('div');
+        bottomRight.classList.add('card-corner', 'bottom-right');
+        bottomRight.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
+        cardFace.appendChild(bottomRight);
+
+        // Center design.
+        const center = document.createElement('div');
+        center.classList.add('card-center');
+        if (card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') {
+          center.textContent = getFaceCardDetail(card);
+        } else {
+          // For Ace and number cards, display a large suit symbol.
+          center.textContent = getSuitSymbol(card.suit);
+        }
+        center.style.color = getCardColour(card.suit);
+        cardFace.appendChild(center);
+
+        cardElement.appendChild(cardFace);
       }
+
       if (draggable) {
         cardElement.setAttribute("draggable", "true");
         cardElement.dataset.sourceType = sourceType;
@@ -240,7 +304,6 @@
         });
       });
     }
-
     // Render stock.
     function renderStock() {
       const stockContainer = document.getElementById('stock');
@@ -251,7 +314,6 @@
         stockContainer.appendChild(cardBack);
       }
     }
-
     // Render waste.
     function renderWaste() {
       const wasteContainer = document.getElementById('waste');
@@ -262,7 +324,6 @@
         wasteContainer.appendChild(cardElem);
       }
     }
-
     // Render foundation piles.
     function renderFoundations() {
       foundations.forEach((foundation, index) => {
@@ -275,8 +336,7 @@
         }
       });
     }
-
-    // Render the entire game.
+    // Render the entire game board.
     function renderGame() {
       renderStock();
       renderWaste();
@@ -320,7 +380,6 @@
     // ----- End Drag & Drop Handlers -----
 
     // ----- Move Validation Functions -----
-    // For tableau moves.
     function isValidTableauMove(card, targetPile) {
       if (targetPile.length === 0) {
         return card.rank === 'K';
@@ -330,14 +389,12 @@
                (getRankValue(card.rank) + 1 === getRankValue(topCard.rank));
       }
     }
-    // For foundation moves.
-    function isValidFoundationMove(card, foundationPile) {
-      if (foundationPile.cards.length === 0) {
-        // Allow an Ace to start an empty foundation.
+    function isValidFoundationMove(card, foundationSlot) {
+      if (foundationSlot.cards.length === 0) {
         return card.rank === 'A';
       } else {
-        const topCard = foundationPile.cards[foundationPile.cards.length - 1];
-        return (card.suit === foundationPile.suit) &&
+        const topCard = foundationSlot.cards[foundationSlot.cards.length - 1];
+        return (card.suit === foundationSlot.suit) &&
                (getRankValue(card.rank) === getRankValue(topCard.rank) + 1);
       }
     }
@@ -356,7 +413,6 @@
       if (destination.type === "tableau") {
         let destPile = tableau[destination.index];
         if (isValidTableauMove(card, destPile)) {
-          // Remove card from source.
           if (dragData.from === "tableau") {
             tableau[dragData.pileIndex].splice(dragData.cardIndex, 1);
             if (tableau[dragData.pileIndex].length > 0) {
@@ -369,8 +425,8 @@
           return true;
         }
       } else if (destination.type === "foundation") {
-        let foundationPile = foundations[destination.index];
-        if (isValidFoundationMove(card, foundationPile)) {
+        let foundationSlot = foundations[destination.index];
+        if (isValidFoundationMove(card, foundationSlot)) {
           if (dragData.from === "tableau") {
             tableau[dragData.pileIndex].splice(dragData.cardIndex, 1);
             if (tableau[dragData.pileIndex].length > 0) {
@@ -379,11 +435,10 @@
           } else if (dragData.from === "waste") {
             waste.pop();
           }
-          // If the foundation is empty, claim its suit based on the Ace dropped.
-          if (foundationPile.cards.length === 0) {
-            foundationPile.suit = card.suit;
+          if (foundationSlot.cards.length === 0) {
+            foundationSlot.suit = card.suit;
           }
-          foundationPile.cards.push(card);
+          foundationSlot.cards.push(card);
           return true;
         }
       }
