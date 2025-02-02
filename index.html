@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Klondike Solitaire – Traditional Card Style</title>
   <style>
-    /* General page styling */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #008000;
@@ -16,7 +15,6 @@
       max-width: 1200px;
       margin: 0 auto;
     }
-    /* Top row: Stock, Waste, Foundations */
     #top-row {
       display: flex;
       justify-content: space-between;
@@ -30,7 +28,6 @@
       background-color: #006400;
       position: relative;
     }
-    /* Foundations styling */
     #foundations {
       display: flex;
       gap: 10px;
@@ -43,7 +40,6 @@
       background-color: #006400;
       position: relative;
     }
-    /* Tableau styling */
     #tableau {
       display: flex;
       justify-content: space-between;
@@ -57,7 +53,6 @@
       background-color: #006400;
       position: relative;
     }
-    /* Card styling */
     .card {
       width: 140px;
       height: 190px;
@@ -67,13 +62,13 @@
       user-select: none;
       cursor: pointer;
       overflow: hidden;
+      background-color: white;
     }
     .face-up {
       background: linear-gradient(to bottom, #ffffff, #f0f0f0);
       border: 1px solid #444;
     }
     .face-down {
-      /* Hashed blue backing */
       background: repeating-linear-gradient(
         45deg,
         #1e3c72,
@@ -83,13 +78,11 @@
       );
       border: 1px solid #000;
     }
-    /* Card face layout */
     .card-face {
       width: 100%;
       height: 100%;
       position: relative;
       font-family: 'Georgia', serif;
-      color: black;
     }
     .card-corner {
       position: absolute;
@@ -113,11 +106,15 @@
       font-size: 50px;
       text-align: center;
     }
+    .pip {
+      position: absolute;
+      font-size: 24px;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
   <div id="game-board">
-    <!-- Top row: Stock, Waste, Foundations -->
     <div id="top-row">
       <div id="stock" class="card-container"></div>
       <div id="waste" class="card-container"></div>
@@ -128,7 +125,6 @@
         <div class="foundation" id="foundation-3"></div>
       </div>
     </div>
-    <!-- Tableau: Seven piles -->
     <div id="tableau">
       <div class="tableau-pile" id="tableau-0"></div>
       <div class="tableau-pile" id="tableau-1"></div>
@@ -139,17 +135,9 @@
       <div class="tableau-pile" id="tableau-6"></div>
     </div>
   </div>
-
   <script>
-    /********************************************************************
-     * Klondike Solitaire – Enhanced Traditional Card Style Version
-     ********************************************************************/
-
-    // Define suits and ranks.
     const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
     const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-
-    // Helper functions.
     function getSuitSymbol(suit) {
       switch(suit) {
         case 'hearts': return '♥';
@@ -160,37 +148,106 @@
       }
     }
     function getRankValue(rank) {
-      if(rank==='A') return 1;
-      if(rank==='J') return 11;
-      if(rank==='Q') return 12;
-      if(rank==='K') return 13;
+      if(rank === 'A') return 1;
+      if(rank === 'J') return 11;
+      if(rank === 'Q') return 12;
+      if(rank === 'K') return 13;
       return parseInt(rank, 10);
     }
     function getCardColour(suit) {
-      return (suit==='hearts' || suit==='diamonds') ? 'red' : 'black';
+      return (suit === 'hearts' || suit === 'diamonds') ? 'red' : 'black';
     }
-    // Returns detail for face cards (J, Q, K)
     function getFaceCardDetail(card) {
-      if(card.rank === 'K'){
-        if(card.suit === 'hearts') return "⚔️"; // King of Hearts (Suicide King)
-        if(card.suit === 'spades') return "⚔️"; // King of Spades
-        if(card.suit === 'diamonds') return "🪓"; // King of Diamonds (axe)
-        if(card.suit === 'clubs') return "⚔️"; // King of Clubs
-      } else if(card.rank === 'Q'){
-        if(card.suit === 'hearts') return "🌹"; // Queen of Hearts holds a flower
-        if(card.suit === 'spades') return "🪄"; // Queen of Spades holds a scepter
-        if(card.suit === 'diamonds') return "🌹"; // Queen of Diamonds holds a flower
-        if(card.suit === 'clubs') return "🌹"; // Queen of Clubs holds a flower
-      } else if(card.rank === 'J'){
-        if(card.suit === 'hearts') return "🍃"; // Jack of Hearts holds a leaf
-        if(card.suit === 'spades') return "🏹"; // Jack of Spades holds a spear
-        if(card.suit === 'diamonds') return "🏹"; // Jack of Diamonds holds a spear (behind head)
-        if(card.suit === 'clubs') return "🪄"; // Jack of Clubs holds a staff
+      if(card.rank === 'K') {
+        return "⚔️";
+      } else if(card.rank === 'Q') {
+        return "🌹";
+      } else if(card.rank === 'J') {
+        return "🏹";
       }
       return "";
     }
-
-    // Card factory.
+    function getPipCoordinates(rank) {
+      const positions = [];
+      switch(rank) {
+        case 'A':
+          positions.push({x:'50%', y:'50%'});
+          break;
+        case '2':
+          positions.push({x:'50%', y:'20%'});
+          positions.push({x:'50%', y:'80%'});
+          break;
+        case '3':
+          positions.push({x:'50%', y:'20%'});
+          positions.push({x:'50%', y:'50%'});
+          positions.push({x:'50%', y:'80%'});
+          break;
+        case '4':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+        case '5':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'50%', y:'50%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+        case '6':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'20%', y:'50%'});
+          positions.push({x:'80%', y:'50%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+        case '7':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'20%', y:'50%'});
+          positions.push({x:'50%', y:'50%'});
+          positions.push({x:'80%', y:'50%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+        case '8':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'20%', y:'40%'});
+          positions.push({x:'80%', y:'40%'});
+          positions.push({x:'20%', y:'60%'});
+          positions.push({x:'80%', y:'60%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+        case '9':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'50%', y:'20%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'20%', y:'50%'});
+          positions.push({x:'50%', y:'50%'});
+          positions.push({x:'80%', y:'50%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'50%', y:'80%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+        case '10':
+          positions.push({x:'20%', y:'20%'});
+          positions.push({x:'20%', y:'35%'});
+          positions.push({x:'20%', y:'50%'});
+          positions.push({x:'20%', y:'65%'});
+          positions.push({x:'20%', y:'80%'});
+          positions.push({x:'80%', y:'20%'});
+          positions.push({x:'80%', y:'35%'});
+          positions.push({x:'80%', y:'50%'});
+          positions.push({x:'80%', y:'65%'});
+          positions.push({x:'80%', y:'80%'});
+          break;
+      }
+      return positions;
+    }
     function createCard(suit, rank) {
       return {
         suit: suit,
@@ -198,7 +255,6 @@
         faceUp: false
       };
     }
-    // Create and shuffle deck.
     function createDeck() {
       const deck = [];
       SUITS.forEach(suit => {
@@ -215,12 +271,7 @@
       }
       return deck;
     }
-
-    // Game zones.
     let tableau = [[], [], [], [], [], [], []];
-    // Foundations: array of 4 foundation slots.
-    // Each slot is an object { suit: null, cards: [] } – when an Ace is dropped here,
-    // that foundation "claims" that suit.
     let foundations = [
       { suit: null, cards: [] },
       { suit: null, cards: [] },
@@ -229,8 +280,6 @@
     ];
     let stock = [];
     let waste = [];
-
-    // Deal cards into tableau and stock.
     function dealCards(deck) {
       let cardIndex = 0;
       for (let i = 0; i < 7; i++) {
@@ -242,45 +291,42 @@
       }
       stock = deck.slice(cardIndex);
     }
-
-    // Render a card element.
-    // For face-up cards, we build a structure with two corners and a center.
     function renderCard(card, sourceType, pileIndex, cardIndex, draggable) {
       const cardElement = document.createElement('div');
       cardElement.classList.add('card');
       cardElement.classList.add(card.faceUp ? 'face-up' : 'face-down');
-
       if (card.faceUp) {
         const cardFace = document.createElement('div');
         cardFace.classList.add('card-face');
-
-        // Top-left corner.
         const topLeft = document.createElement('div');
         topLeft.classList.add('card-corner', 'top-left');
         topLeft.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
         cardFace.appendChild(topLeft);
-
-        // Bottom-right corner.
         const bottomRight = document.createElement('div');
         bottomRight.classList.add('card-corner', 'bottom-right');
         bottomRight.innerHTML = `<span class="rank" style="color:${getCardColour(card.suit)};">${card.rank}</span><br/><span class="suit" style="color:${getCardColour(card.suit)};">${getSuitSymbol(card.suit)}</span>`;
         cardFace.appendChild(bottomRight);
-
-        // Center design.
-        const center = document.createElement('div');
-        center.classList.add('card-center');
         if (card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') {
+          const center = document.createElement('div');
+          center.classList.add('card-center');
           center.textContent = getFaceCardDetail(card);
+          center.style.color = getCardColour(card.suit);
+          cardFace.appendChild(center);
         } else {
-          // For Ace and number cards, display a large suit symbol.
-          center.textContent = getSuitSymbol(card.suit);
+          const pipCoordinates = getPipCoordinates(card.rank);
+          pipCoordinates.forEach(pos => {
+            const pip = document.createElement('div');
+            pip.classList.add('pip');
+            pip.style.left = pos.x;
+            pip.style.top = pos.y;
+            pip.style.transform = 'translate(-50%, -50%)';
+            pip.style.color = getCardColour(card.suit);
+            pip.textContent = getSuitSymbol(card.suit);
+            cardFace.appendChild(pip);
+          });
         }
-        center.style.color = getCardColour(card.suit);
-        cardFace.appendChild(center);
-
         cardElement.appendChild(cardFace);
       }
-
       if (draggable) {
         cardElement.setAttribute("draggable", "true");
         cardElement.dataset.sourceType = sourceType;
@@ -290,8 +336,6 @@
       }
       return cardElement;
     }
-
-    // Render tableau piles.
     function renderTableau() {
       tableau.forEach((pile, pileIndex) => {
         const pileContainer = document.getElementById('tableau-' + pileIndex);
@@ -304,7 +348,6 @@
         });
       });
     }
-    // Render stock.
     function renderStock() {
       const stockContainer = document.getElementById('stock');
       stockContainer.innerHTML = '';
@@ -314,7 +357,6 @@
         stockContainer.appendChild(cardBack);
       }
     }
-    // Render waste.
     function renderWaste() {
       const wasteContainer = document.getElementById('waste');
       wasteContainer.innerHTML = '';
@@ -324,7 +366,6 @@
         wasteContainer.appendChild(cardElem);
       }
     }
-    // Render foundation piles.
     function renderFoundations() {
       foundations.forEach((foundation, index) => {
         const foundationContainer = document.getElementById('foundation-' + index);
@@ -336,15 +377,12 @@
         }
       });
     }
-    // Render the entire game board.
     function renderGame() {
       renderStock();
       renderWaste();
       renderFoundations();
       renderTableau();
     }
-
-    // ----- Drag & Drop Handlers -----
     function handleDragStart(e) {
       const dragData = {
         from: e.target.dataset.sourceType,
@@ -377,9 +415,6 @@
         renderGame();
       }
     }
-    // ----- End Drag & Drop Handlers -----
-
-    // ----- Move Validation Functions -----
     function isValidTableauMove(card, targetPile) {
       if (targetPile.length === 0) {
         return card.rank === 'K';
@@ -398,9 +433,6 @@
                (getRankValue(card.rank) === getRankValue(topCard.rank) + 1);
       }
     }
-    // ----- End Move Validation Functions -----
-
-    // ----- Attempt to Move a Card -----
     function attemptMove(dragData, destination) {
       let card;
       if (dragData.from === "tableau") {
@@ -409,7 +441,6 @@
         card = waste[waste.length - 1];
       }
       if (!card) return false;
-
       if (destination.type === "tableau") {
         let destPile = tableau[destination.index];
         if (isValidTableauMove(card, destPile)) {
@@ -444,9 +475,6 @@
       }
       return false;
     }
-    // ----- End Attempt Move -----
-
-    // ----- Stock Click Handler (Draw a Card) -----
     document.getElementById('stock').addEventListener('click', function() {
       if (stock.length > 0) {
         const card = stock.shift();
@@ -459,13 +487,10 @@
         renderGame();
       }
     });
-
-    // ----- Initialize the Game -----
     function initGame() {
       const deck = shuffleDeck(createDeck());
       dealCards(deck);
       renderGame();
-      // Attach drop event listeners.
       document.querySelectorAll('.tableau-pile').forEach(el => {
         el.addEventListener('dragover', handleDragOver);
         el.addEventListener('drop', handleDrop);
