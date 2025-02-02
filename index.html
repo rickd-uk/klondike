@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Klondike Solitaire</title>
+  <style>
+    /* General styling */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #008000;
+      margin: 0;
+      padding: 20px;
+      color: #fff;
+    }
+    #game-board {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    /* Top row styling */
+    #top-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .card-container {
+      width: 100px;
+      height: 140px;
+      border: 1px solid #fff;
+      border-radius: 8px;
+      background-color: #006400;
+      position: relative;
+    }
+    /* Foundations styling */
+    #foundations {
+      display: flex;
+      gap: 10px;
+    }
+    .foundation {
+      width: 100px;
+      height: 140px;
+      border: 1px dashed #fff; /* dashed border to indicate an empty slot */
+      border-radius: 8px;
+      background-color: #006400;
+      position: relative;
+    }
+    /* Tableau styling */
+    #tableau {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .tableau-pile {
+      width: 100px;
+      min-height: 140px;
+      border: 1px solid #fff;
+      border-radius: 8px;
+      background-color: #006400;
+      position: relative;
+    }
+    /* Card styling */
+    .card {
+      width: 100px;
+      height: 140px;
+      border-radius: 8px;
+      position: absolute;
+      text-align: center;
+      font-size: 24px;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+      user-select: none;
+      cursor: pointer;  /* hand cursor */
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 4px;
+    }
+    .face-up {
+      background: linear-gradient(to bottom, #ffffff, #f0f0f0);
+      border: 1px solid #444;
+    }
+    .face-down {
+      background: linear-gradient(to bottom, #2e2e2e, #1a1a1a);
+      border: 1px solid #000;
+      color: transparent;
+    }
+    .card .rank {
+      font-weight: bold;
+    }
+    .card .suit {
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-board">
+    <!-- Top row: Stock, Waste, and Foundations -->
+    <div id="top-row">
+      <div id="stock" class="card-container"></div>
+      <div id="waste" class="card-container"></div>
+      <div id="foundations">
+        <!-- Four foundation slots (empty until an Ace is dropped) -->
+        <div class="foundation" id="foundation-0"></div>
+        <div class="foundation" id="foundation-1"></div>
+        <div class="foundation" id="foundation-2"></div>
+        <div class="foundation" id="foundation-3"></div>
+      </div>
+    </div>
+    <!-- Tableau: Seven piles -->
+    <div id="tableau">
+      <div class="tableau-pile" id="tableau-0"></div>
+      <div class="tableau-pile" id="tableau-1"></div>
+      <div class="tableau-pile" id="tableau-2"></div>
+      <div class="tableau-pile" id="tableau-3"></div>
+      <div class="tableau-pile" id="tableau-4"></div>
+      <div class="tableau-pile" id="tableau-5"></div>
+      <div class="tableau-pile" id="tableau-6"></div>
+    </div>
+  </div>
+
+  <script>
+    /********************************************************************
+     * Klondike Solitaire – Enhanced Version with Drag & Drop and
+     * Foundation Rules Allowing Any Ace to Start a Foundation
+     ********************************************************************/
+
+    // Define suits and ranks.
+    const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+    // Helper functions.
+    function getSuitSymbol(suit) {
+      switch (suit) {
+        case 'hearts': return '♥';
+        case 'diamonds': return '♦';
+        case 'clubs': return '♣';
+        case 'spades': return '♠';
+        default: return '';
+      }
+    }
+    function getRankValue(rank) {
+      if (rank === 'A') return 1;
+      if (rank === 'J') return 11;
+      if (rank === 'Q') return 12;
+      if (rank === 'K') return 13;
+      return parseInt(rank, 10);
+    }
+    function getCardColour(suit) {
+      return (suit === 'hearts' || suit === 'diamonds') ? 'red' : 'black';
+    }
+
+    // Card factory.
+    function createCard(suit, rank) {
+      return {
+        suit: suit,
+        rank: rank,
+        faceUp: false
+      };
+    }
+
+    // Create and shuffle a deck.
+    function createDeck() {
+      const deck = [];
+      SUITS.forEach(suit => {
+        RANKS.forEach(rank => {
+          deck.push(createCard(suit, rank));
+        });
+      });
+      return deck;
+    }
+    function shuffleDeck(deck) {
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+      return deck;
+    }
+
+    // Game zones.
+    let tableau = [[], [], [], [], [], [], []];
+    // Foundations: array of 4 foundation piles.
+    // Each pile starts empty with a null suit. When an Ace is dropped,
+    // the foundation "claims" that suit.
+    let foundations = [
+      { suit: null, cards: [] },
+      { suit: null, cards: [] },
+      { suit: null, cards: [] },
+      { suit: null, cards: [] }
+    ];
+    let stock = [];
+    let waste = [];
+
+    // Deal cards into tableau and stock.
+    function dealCards(deck) {
+      let cardIndex = 0;
+      for (let i = 0; i < 7; i++) {
+        for (let j = 0; j <= i; j++) {
+          const card = deck[cardIndex++];
+          card.faceUp = (j === i);
+          tableau[i].push(card);
+        }
+      }
+      stock = deck.slice(cardIndex);
+    }
+
+    // Render a card element.
+    function renderCard(card, sourceType, pileIndex, cardIndex, draggable) {
+      const cardElement = document.createElement('div');
+      cardElement.classList.add('card', card.faceUp ? 'face-up' : 'face-down');
+      if (card.faceUp) {
+        const rankElem = document.createElement('div');
+        rankElem.classList.add('rank');
+        rankElem.textContent = card.rank;
+        rankElem.style.color = getCardColour(card.suit);
+        const suitElem = document.createElement('div');
+        suitElem.classList.add('suit');
+        suitElem.textContent = getSuitSymbol(card.suit);
+        suitElem.style.color = getCardColour(card.suit);
+        cardElement.appendChild(rankElem);
+        cardElement.appendChild(suitElem);
+      }
+      if (draggable) {
+        cardElement.setAttribute("draggable", "true");
+        cardElement.dataset.sourceType = sourceType;
+        cardElement.dataset.pileIndex = pileIndex;
+        cardElement.dataset.cardIndex = cardIndex;
+        cardElement.addEventListener("dragstart", handleDragStart);
+      }
+      return cardElement;
+    }
+
+    // Render tableau piles.
+    function renderTableau() {
+      tableau.forEach((pile, pileIndex) => {
+        const pileContainer = document.getElementById('tableau-' + pileIndex);
+        pileContainer.innerHTML = '';
+        pile.forEach((card, index) => {
+          const isDraggable = card.faceUp && (index === pile.length - 1);
+          const cardElem = renderCard(card, "tableau", pileIndex, index, isDraggable);
+          cardElem.style.top = (index * 30) + 'px';
+          pileContainer.appendChild(cardElem);
+        });
+      });
+    }
+
+    // Render stock.
+    function renderStock() {
+      const stockContainer = document.getElementById('stock');
+      stockContainer.innerHTML = '';
+      if (stock.length > 0) {
+        const cardBack = document.createElement('div');
+        cardBack.classList.add('card', 'face-down');
+        stockContainer.appendChild(cardBack);
+      }
+    }
+
+    // Render waste.
+    function renderWaste() {
+      const wasteContainer = document.getElementById('waste');
+      wasteContainer.innerHTML = '';
+      if (waste.length > 0) {
+        const topCard = waste[waste.length - 1];
+        const cardElem = renderCard(topCard, "waste", 0, waste.length - 1, true);
+        wasteContainer.appendChild(cardElem);
+      }
+    }
+
+    // Render foundation piles.
+    function renderFoundations() {
+      foundations.forEach((foundation, index) => {
+        const foundationContainer = document.getElementById('foundation-' + index);
+        foundationContainer.innerHTML = '';
+        if (foundation.cards.length > 0) {
+          const topCard = foundation.cards[foundation.cards.length - 1];
+          const cardElem = renderCard(topCard, "foundation", index, foundation.cards.length - 1, false);
+          foundationContainer.appendChild(cardElem);
+        }
+      });
+    }
+
+    // Render the entire game.
+    function renderGame() {
+      renderStock();
+      renderWaste();
+      renderFoundations();
+      renderTableau();
+    }
+
+    // ----- Drag & Drop Handlers -----
+    function handleDragStart(e) {
+      const dragData = {
+        from: e.target.dataset.sourceType,
+        pileIndex: parseInt(e.target.dataset.pileIndex),
+        cardIndex: parseInt(e.target.dataset.cardIndex)
+      };
+      e.dataTransfer.setData("application/json", JSON.stringify(dragData));
+    }
+    function handleDragOver(e) {
+      e.preventDefault();
+    }
+    function handleDrop(e) {
+      e.preventDefault();
+      let destination;
+      const dropTarget = e.currentTarget;
+      if (dropTarget.classList.contains("tableau-pile")) {
+        const tableauIndex = parseInt(dropTarget.id.split("-")[1]);
+        destination = { type: "tableau", index: tableauIndex };
+      } else if (dropTarget.classList.contains("foundation")) {
+        const foundationIndex = parseInt(dropTarget.id.split("-")[1]);
+        destination = { type: "foundation", index: foundationIndex };
+      } else {
+        return;
+      }
+      const data = e.dataTransfer.getData("application/json");
+      if (!data) return;
+      const dragData = JSON.parse(data);
+      const moved = attemptMove(dragData, destination);
+      if (moved) {
+        renderGame();
+      }
+    }
+    // ----- End Drag & Drop Handlers -----
+
+    // ----- Move Validation Functions -----
+    // For tableau moves.
+    function isValidTableauMove(card, targetPile) {
+      if (targetPile.length === 0) {
+        return card.rank === 'K';
+      } else {
+        const topCard = targetPile[targetPile.length - 1];
+        return (getCardColour(card.suit) !== getCardColour(topCard.suit)) &&
+               (getRankValue(card.rank) + 1 === getRankValue(topCard.rank));
+      }
+    }
+    // For foundation moves.
+    function isValidFoundationMove(card, foundationPile) {
+      if (foundationPile.cards.length === 0) {
+        // Allow an Ace to start an empty foundation.
+        return card.rank === 'A';
+      } else {
+        const topCard = foundationPile.cards[foundationPile.cards.length - 1];
+        return (card.suit === foundationPile.suit) &&
+               (getRankValue(card.rank) === getRankValue(topCard.rank) + 1);
+      }
+    }
+    // ----- End Move Validation Functions -----
+
+    // ----- Attempt to Move a Card -----
+    function attemptMove(dragData, destination) {
+      let card;
+      if (dragData.from === "tableau") {
+        card = tableau[dragData.pileIndex][dragData.cardIndex];
+      } else if (dragData.from === "waste") {
+        card = waste[waste.length - 1];
+      }
+      if (!card) return false;
+
+      if (destination.type === "tableau") {
+        let destPile = tableau[destination.index];
+        if (isValidTableauMove(card, destPile)) {
+          // Remove card from source.
+          if (dragData.from === "tableau") {
+            tableau[dragData.pileIndex].splice(dragData.cardIndex, 1);
+            if (tableau[dragData.pileIndex].length > 0) {
+              tableau[dragData.pileIndex][tableau[dragData.pileIndex].length - 1].faceUp = true;
+            }
+          } else if (dragData.from === "waste") {
+            waste.pop();
+          }
+          destPile.push(card);
+          return true;
+        }
+      } else if (destination.type === "foundation") {
+        let foundationPile = foundations[destination.index];
+        if (isValidFoundationMove(card, foundationPile)) {
+          if (dragData.from === "tableau") {
+            tableau[dragData.pileIndex].splice(dragData.cardIndex, 1);
+            if (tableau[dragData.pileIndex].length > 0) {
+              tableau[dragData.pileIndex][tableau[dragData.pileIndex].length - 1].faceUp = true;
+            }
+          } else if (dragData.from === "waste") {
+            waste.pop();
+          }
+          // If the foundation is empty, claim its suit based on the Ace dropped.
+          if (foundationPile.cards.length === 0) {
+            foundationPile.suit = card.suit;
+          }
+          foundationPile.cards.push(card);
+          return true;
+        }
+      }
+      return false;
+    }
+    // ----- End Attempt Move -----
+
+    // ----- Stock Click Handler (Draw a Card) -----
+    document.getElementById('stock').addEventListener('click', function() {
+      if (stock.length > 0) {
+        const card = stock.shift();
+        card.faceUp = true;
+        waste.push(card);
+        renderGame();
+      } else {
+        stock = waste.map(card => { card.faceUp = false; return card; });
+        waste = [];
+        renderGame();
+      }
+    });
+
+    // ----- Initialize the Game -----
+    function initGame() {
+      const deck = shuffleDeck(createDeck());
+      dealCards(deck);
+      renderGame();
+      // Attach drop event listeners.
+      document.querySelectorAll('.tableau-pile').forEach(el => {
+        el.addEventListener('dragover', handleDragOver);
+        el.addEventListener('drop', handleDrop);
+      });
+      document.querySelectorAll('.foundation').forEach(el => {
+        el.addEventListener('dragover', handleDragOver);
+        el.addEventListener('drop', handleDrop);
+      });
+    }
+    window.onload = initGame;
+  </script>
+</body>
+</html>
+
