@@ -39,6 +39,11 @@
       font-weight: bold;
       margin-top: 10px;
     }
+    #moveCountDisplay {
+      font-size: 20px;
+      margin-top: 5px;
+      font-weight: bold;
+    }
     #game-board {
       max-width: 1200px;
       margin: 0 auto;
@@ -200,6 +205,7 @@
     <button id="restartGame">Restart</button>
     <button id="quitGame">Quit</button>
     <div id="scoreDisplay">Score: 0</div>
+    <div id="moveCountDisplay">Possible Moves: 0</div>
   </div>
   <div id="game-board">
     <div id="top-row">
@@ -225,11 +231,11 @@
   <script>
     let useSprite = false;
     const cardSprite = new Image();
-    cardSprite.onload = function(){ useSprite = true; renderGame(); checkWinCondition(); };
-    cardSprite.onerror = function(){ useSprite = false; renderGame(); checkWinCondition(); };
+    cardSprite.onload = function(){ useSprite = true; renderGame(); checkWinCondition(); updatePossibleMoves(); };
+    cardSprite.onerror = function(){ useSprite = false; renderGame(); checkWinCondition(); updatePossibleMoves(); };
     cardSprite.src = "playingcards_standard.png";
     let baseCardWidth = 140, baseCardHeight = 190;
-    // Updated scale settings: allow one more decrease, reduce max enlarge by one.
+    // Allow one more decrease (minScaleLevel = -3) and reduce max enlarge by one (maxScaleLevel = 1)
     let scaleLevel = 0, minScaleLevel = -3, maxScaleLevel = 1;
     let cardWidth = baseCardWidth, cardHeight = baseCardHeight;
     let spriteSheetWidth = 14 * cardWidth, spriteSheetHeight = 4 * cardHeight;
@@ -415,6 +421,7 @@
       renderFoundations();
       renderTableau();
       checkWinCondition();
+      updatePossibleMoves();
     }
     function createDragImage(dragGroup){
       const dragDiv = document.createElement('div');
@@ -476,7 +483,6 @@
       const src = el.dataset.sourceType;
       const pileIdx = parseInt(el.dataset.pileIndex);
       const cardIdx = parseInt(el.dataset.cardIndex);
-      // Only allow double-click from tableau if it is the bottom-most visible card.
       if(src==="tableau" && cardIdx !== tableau[pileIdx].length - 1) return;
       let card;
       if(src==="tableau") card = tableau[pileIdx][cardIdx];
@@ -504,7 +510,6 @@
       const f = foundations[fIndex];
       if(f.cards.length === 0) return;
       if(f.cards[f.cards.length-1].rank === 'A') return;
-      // Do not allow moving a card from foundation if it is not the only card.
       const card = f.cards.pop();
       if(f.cards.length === 0) f.suit = null;
       card.faceUp = true;
@@ -539,7 +544,6 @@
     function attemptMove(dragData, dest){
       let moved = false;
       if(dragData.from === "tableau"){
-        // Only allow moving the bottom-most visible card to foundation
         if(dest.type==="foundation" && dragData.cardIndex !== tableau[dragData.pileIndex].length - 1)
           return false;
         const sourcePile = tableau[dragData.pileIndex];
@@ -656,6 +660,52 @@
     let score = 0;
     function addScore(delta){ score += delta; updateScoreDisplay(); }
     function updateScoreDisplay(){ document.getElementById("scoreDisplay").textContent = "Score: " + score; }
+    function updatePossibleMoves(){
+      let count = 0;
+      // Check waste top card moves
+      if(waste.length > 0){
+        let card = waste[waste.length-1];
+        // Check tableau placements for waste card
+        tableau.forEach(pile=>{
+          if(pile.length === 0){
+            if(card.rank === 'K') count++;
+          } else {
+            let top = pile[pile.length-1];
+            if(getCardColour(card.suit) !== getCardColour(top.suit) &&
+               getRankValue(card.rank) + 1 === getRankValue(top.rank))
+              count++;
+          }
+        });
+        // Check foundation placements for waste card
+        foundations.forEach(f=>{
+          if(f.cards.length === 0){
+            if(card.rank === 'A') count++;
+          } else {
+            let top = f.cards[f.cards.length-1];
+            if(card.suit === f.suit &&
+               getRankValue(card.rank) === getRankValue(top.rank) + 1)
+              count++;
+          }
+        });
+      }
+      // Check bottom-most tableau card moves to foundation
+      tableau.forEach(pile=>{
+        if(pile.length > 0){
+          let card = pile[pile.length-1];
+          foundations.forEach(f=>{
+            if(f.cards.length === 0){
+              if(card.rank === 'A') count++;
+            } else {
+              let top = f.cards[f.cards.length-1];
+              if(card.suit === f.suit &&
+                 getRankValue(card.rank) === getRankValue(top.rank) + 1)
+                count++;
+            }
+          });
+        }
+      });
+      document.getElementById("moveCountDisplay").textContent = "Possible Moves: " + count;
+    }
     let startTime = 0;
     function checkWinCondition(){
       let total = foundations.reduce((s, f) => s + f.cards.length, 0);
@@ -705,10 +755,12 @@
         card.faceUp = true;
         waste.push(card);
         renderGame();
+        updatePossibleMoves();
       } else {
         stock = waste.map(c => { c.faceUp = false; return c; });
         waste = [];
         renderGame();
+        updatePossibleMoves();
       }
     });
     document.getElementById('startGame').addEventListener('click', function(){
