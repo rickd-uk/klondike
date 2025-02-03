@@ -235,7 +235,7 @@
     cardSprite.onerror = function(){ useSprite = false; renderGame(); checkWinCondition(); updatePossibleMoves(); };
     cardSprite.src = "playingcards_standard.png";
     let baseCardWidth = 140, baseCardHeight = 190;
-    // Allow one more decrease (minScaleLevel = -3) and reduce max enlarge by one (maxScaleLevel = 1)
+    // Allow one more decrease (minScaleLevel = -3) and reduce maximum enlargement by one (maxScaleLevel = 1)
     let scaleLevel = 0, minScaleLevel = -3, maxScaleLevel = 1;
     let cardWidth = baseCardWidth, cardHeight = baseCardHeight;
     let spriteSheetWidth = 14 * cardWidth, spriteSheetHeight = 4 * cardHeight;
@@ -483,6 +483,7 @@
       const src = el.dataset.sourceType;
       const pileIdx = parseInt(el.dataset.pileIndex);
       const cardIdx = parseInt(el.dataset.cardIndex);
+      // Only allow double-click on a tableau card if it is the bottom-most card.
       if(src==="tableau" && cardIdx !== tableau[pileIdx].length - 1) return;
       let card;
       if(src==="tableau") card = tableau[pileIdx][cardIdx];
@@ -544,6 +545,7 @@
     function attemptMove(dragData, dest){
       let moved = false;
       if(dragData.from === "tableau"){
+        // When moving to a foundation, only allow the bottom-most card.
         if(dest.type==="foundation" && dragData.cardIndex !== tableau[dragData.pileIndex].length - 1)
           return false;
         const sourcePile = tableau[dragData.pileIndex];
@@ -662,10 +664,10 @@
     function updateScoreDisplay(){ document.getElementById("scoreDisplay").textContent = "Score: " + score; }
     function updatePossibleMoves(){
       let count = 0;
-      // Check waste top card moves
+      // Check moves available from the waste card.
       if(waste.length > 0){
         let card = waste[waste.length-1];
-        // Check tableau placements for waste card
+        // Waste to tableau:
         tableau.forEach(pile=>{
           if(pile.length === 0){
             if(card.rank === 'K') count++;
@@ -676,7 +678,7 @@
               count++;
           }
         });
-        // Check foundation placements for waste card
+        // Waste to foundation:
         foundations.forEach(f=>{
           if(f.cards.length === 0){
             if(card.rank === 'A') count++;
@@ -688,10 +690,11 @@
           }
         });
       }
-      // Check bottom-most tableau card moves to foundation
+      // Check moves for bottom-most tableau cards:
       tableau.forEach(pile=>{
         if(pile.length > 0){
           let card = pile[pile.length-1];
+          // Tableau to foundation:
           foundations.forEach(f=>{
             if(f.cards.length === 0){
               if(card.rank === 'A') count++;
@@ -700,6 +703,19 @@
               if(card.suit === f.suit &&
                  getRankValue(card.rank) === getRankValue(top.rank) + 1)
                 count++;
+            }
+          });
+          // Tableau to tableau:
+          tableau.forEach(otherPile=>{
+            if(otherPile !== pile){
+              if(otherPile.length === 0){
+                if(card.rank === 'K') count++;
+              } else {
+                let top = otherPile[otherPile.length-1];
+                if(getCardColour(card.suit) !== getCardColour(top.suit) &&
+                   getRankValue(card.rank) + 1 === getRankValue(top.rank))
+                  count++;
+              }
             }
           });
         }
@@ -782,6 +798,51 @@
       window.onbeforeunload = null;
       quitGame();
     });
+    function handleDragOver(e){ e.preventDefault(); }
+    function handleDragStart(e){
+      const sourceType = e.target.dataset.sourceType;
+      const pileIdx = parseInt(e.target.dataset.pileIndex);
+      const cardIdx = parseInt(e.target.dataset.cardIndex);
+      const d = { from: sourceType, pileIndex: pileIdx, cardIndex: cardIdx };
+      e.dataTransfer.setData("application/json", JSON.stringify(d));
+      if(sourceType==="tableau"){
+        const group = tableau[pileIdx].slice(cardIdx);
+        if(group.length > 1){
+          let spacing = cardHeight * (30/baseCardHeight);
+          const tempContainer = document.createElement('div');
+          tempContainer.style.position = "absolute";
+          tempContainer.style.top = "-1000px";
+          tempContainer.style.left = "-1000px";
+          tempContainer.style.width = cardWidth + "px";
+          tempContainer.style.height = ((group.length - 1) * spacing + cardHeight) + "px";
+          for(let i = 0; i < group.length; i++){
+            const cardEl = renderCard(group[i], "tableau", pileIdx, cardIdx+i, true);
+            cardEl.style.position = "absolute";
+            cardEl.style.top = (i * spacing) + "px";
+            tempContainer.appendChild(cardEl);
+          }
+          document.body.appendChild(tempContainer);
+          e.dataTransfer.setDragImage(tempContainer, 0, 0);
+          setTimeout(()=>{ document.body.removeChild(tempContainer); }, 0);
+        }
+      }
+    }
+    function handleDrop(e){
+      e.preventDefault();
+      let dest;
+      const target = e.currentTarget;
+      if(target.classList.contains("tableau-pile")){
+        const ti = parseInt(target.id.split("-")[1]);
+        dest = { type:"tableau", index: ti };
+      } else if(target.classList.contains("foundation")){
+        const fi = parseInt(target.id.split("-")[1]);
+        dest = { type:"foundation", index: fi };
+      } else return;
+      const data = e.dataTransfer.getData("application/json");
+      if(!data)return;
+      const d = JSON.parse(data);
+      if(attemptMove(d, dest)) renderGame();
+    }
     let playerName = "";
     window.onload = function(){
       if(localStorage.getItem("playerName") !== null){
