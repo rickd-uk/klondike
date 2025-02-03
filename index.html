@@ -229,7 +229,8 @@
     cardSprite.onerror = function(){ useSprite = false; renderGame(); checkWinCondition(); };
     cardSprite.src = "playingcards_standard.png";
     let baseCardWidth = 140, baseCardHeight = 190;
-    let scaleLevel = 0, minScaleLevel = -2, maxScaleLevel = 2;
+    // Updated scale settings: allow one more decrease, reduce max enlarge by one.
+    let scaleLevel = 0, minScaleLevel = -3, maxScaleLevel = 1;
     let cardWidth = baseCardWidth, cardHeight = baseCardHeight;
     let spriteSheetWidth = 14 * cardWidth, spriteSheetHeight = 4 * cardHeight;
     function updateSpriteSheetSize(){ spriteSheetWidth = 14 * cardWidth; spriteSheetHeight = 4 * cardHeight; }
@@ -475,6 +476,8 @@
       const src = el.dataset.sourceType;
       const pileIdx = parseInt(el.dataset.pileIndex);
       const cardIdx = parseInt(el.dataset.cardIndex);
+      // Only allow double-click from tableau if it is the bottom-most visible card.
+      if(src==="tableau" && cardIdx !== tableau[pileIdx].length - 1) return;
       let card;
       if(src==="tableau") card = tableau[pileIdx][cardIdx];
       else if(src==="waste") card = waste[waste.length-1];
@@ -500,8 +503,8 @@
       const fIndex = parseInt(e.currentTarget.dataset.foundationIndex);
       const f = foundations[fIndex];
       if(f.cards.length === 0) return;
-      // Prevent moving an Ace from the foundation back
       if(f.cards[f.cards.length-1].rank === 'A') return;
+      // Do not allow moving a card from foundation if it is not the only card.
       const card = f.cards.pop();
       if(f.cards.length === 0) f.suit = null;
       card.faceUp = true;
@@ -536,6 +539,9 @@
     function attemptMove(dragData, dest){
       let moved = false;
       if(dragData.from === "tableau"){
+        // Only allow moving the bottom-most visible card to foundation
+        if(dest.type==="foundation" && dragData.cardIndex !== tableau[dragData.pileIndex].length - 1)
+          return false;
         const sourcePile = tableau[dragData.pileIndex];
         const group = sourcePile.slice(dragData.cardIndex);
         if(dest.type === "tableau"){
