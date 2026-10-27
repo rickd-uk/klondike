@@ -54,3 +54,15 @@ test('fan uses fixed steps and compresses to fit', () => {
   const down = ty[1] - ty[0], up = ty[7] - ty[6];
   assert.ok(Math.abs(up / down - 0.30 / 0.08) < 1e-9, 'ratio preserved');
 });
+
+test('phone gutters fit on short landscape screens', () => {
+  for (const vh of [300, 320, 340, 360, 390, 430]) {
+    const vw = Math.round(vh * 2.2);
+    for (const insets of [undefined, { l: 44, r: 44, t: 0, b: 21 }]) {
+      const g = L.compute(vw, vh, insets);
+      assert.equal(g.mode, 'phone');
+      assert.ok(g.sideRight.y + g.sideRight.h <= g.bottom, `${vw}x${vh} buttons end ${g.sideRight.y + g.sideRight.h} > ${g.bottom}`);
+      assert.ok(g.sideLeft.y + g.sideLeft.h <= g.bottom, `${vw}x${vh} stats`);
+    }
+  }
+});

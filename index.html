@@ -14,7 +14,7 @@
     html, body { margin: 0; height: 100%; overflow: hidden; background: #0c4126; }
     body { font-family: Georgia, 'Times New Roman', serif; color: var(--cream); -webkit-tap-highlight-color: transparent; }
     #app {
-      position: fixed; inset: 0;
+      position: fixed; inset: 0; touch-action: none;
       background:
         url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
         radial-gradient(ellipse at 50% 35%, #23824b 0%, #17633a 50%, #0c4126 100%);
@@ -42,11 +42,14 @@
 
     #app.mode-phone #bar { display: contents; }
     #app.mode-phone #stats, #app.mode-phone #buttons { position: absolute; z-index: 20; flex-direction: column; align-items: stretch; text-align: center; margin: 0; }
-    #app.mode-phone #stats { gap: 4px; font-size: 12px; color: var(--gold); }
+    #app.mode-phone #stats { gap: 4px; font-size: 12px; line-height: 14px; color: var(--gold); }
     #app.mode-phone #stats span { display: flex; flex-direction: column; }
-    #app.mode-phone #stats b { font-size: 16px; }
-    #app.mode-phone #buttons { gap: 5px; }
-    #app.mode-phone .btn { font-size: 12px; padding: 4px 6px; }
+    #app.mode-phone #stats b { font-size: 16px; line-height: 18px; }
+    /* Hint Undo / New game / Settings Quit: 3 rows of 26px, matching KlondikeLayout's gutter */
+    #app.mode-phone #buttons { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 26px; gap: 5px; }
+    #app.mode-phone #newGameBtn { grid-column: span 2; }
+    #app.mode-phone .btn { font-size: 12px; padding: 0 4px; box-sizing: border-box; height: 26px; }
+    #app.mode-phone .btn.hidden { display: block; visibility: hidden; }
 
     #table { position: absolute; inset: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
     .slot { position: absolute; box-sizing: border-box; border-radius: 7%/5%; border: 1.5px solid rgba(255,255,255,.18); background: rgba(0,0,0,.12); }
@@ -76,7 +79,7 @@
     #toast.show { opacity: 1; }
 
     .modal {
-      position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
+      position: fixed; inset: 0; z-index: 10000; touch-action: manipulation; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.6);
     }
     .modal-content {
@@ -359,6 +362,14 @@
             return to && { from, to };
           }),
         ];
+        // 4b. part of a run onto another column, when that frees a card for a foundation
+        tiers.push(() => COLUMNS.flatMap((col) => state.tableau[col.index].map((card, ci, pile) => {
+          if (ci === 0 || !card.faceUp || !pile[ci - 1].faceUp) return null;
+          if (!FOUNDATIONS.some((f) => accepts(state, [pile[ci - 1]], f))) return null;
+          const from = { pile: 'tableau', index: col.index, cardIndex: ci };
+          const to = firstLegal(state, from, COLUMNS);
+          return to && { from, to };
+        })));
         for (const tier of tiers) {
           const found = tier().find(Boolean);
           if (found) return found;
@@ -474,6 +485,8 @@
     // Table geometry for a viewport. Pure: no DOM.
     const KlondikeLayout = (() => {
       const RATIO = 1.4, BAR_H = 48;
+      // Phone gutters under stock/waste and foundations: stats (2 lines) and buttons (3 rows of 26px).
+      const STATS_H = 72, BUTTONS_H = 3 * 26 + 2 * 5;
 
       function mode(vw, vh) {
         if (vh > vw && vw < 600) return 'rotate';
@@ -506,7 +519,7 @@
         const top = Math.max(8, insets.t), bottom = vh - Math.max(6, insets.b);
         const gap = 6, sideGap = 14;
         const byWidth = Math.floor((vw - l - r - 2 * sideGap - 8 * gap) / 10);
-        const byHeight = Math.floor((bottom - top - 80 - gap) / 2 / RATIO);
+        const byHeight = Math.floor((bottom - top - Math.max(STATS_H, BUTTONS_H) - gap - 10) / 2 / RATIO);
         const cardW = Math.max(30, Math.min(byWidth, byHeight)), cardH = cardW * RATIO;
         const used = 10 * cardW + 8 * gap + 2 * sideGap;
         const xl = l + Math.floor((vw - l - r - used) / 2);
@@ -519,8 +532,8 @@
           foundations: [0, 1, 2, 3].map((i) => ({ x: xr + (i % 2) * (cardW + gap), y: top + Math.floor(i / 2) * (cardH + gap) })),
           tableau: [0, 1, 2, 3, 4, 5, 6].map((i) => ({ x: xt + i * (cardW + gap), y: top })),
           bottom,
-          sideLeft: { x: xl, y: below, w: cardW },
-          sideRight: { x: xr, y: below, w: 2 * cardW + gap },
+          sideLeft: { x: xl, y: below, w: cardW, h: STATS_H },
+          sideRight: { x: xr, y: below, w: 2 * cardW + gap, h: BUTTONS_H },
         };
       }
 
@@ -681,7 +694,7 @@
     }
 
     // ---- moves and animation ----
-    const ANIM_MS = 180, DRAG_THRESHOLD = 6;
+    const ANIM_MS = 180, DRAG_THRESHOLD = 6, TOUCH_DRAG_THRESHOLD = 10;
 
     function captureRects() {
       const rects = new Map();
@@ -750,7 +763,7 @@
       if (gesture || !game || e.button > 0) return;
       const el = e.target.closest('.card, .slot');
       if (!el) return;
-      const base = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, el, dragging: false, vw: window.innerWidth, vh: window.innerHeight };
+      const base = { slop: e.pointerType === 'touch' ? TOUCH_DRAG_THRESHOLD : DRAG_THRESHOLD, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, el, dragging: false, vw: window.innerWidth, vh: window.innerHeight };
       if (el.dataset.pile === 'stock') gesture = { ...base, stock: true };
       else {
         const from = el.classList.contains('face-up') ? locOf(el) : null;
@@ -765,10 +778,10 @@
     function onPointerMove(e) {
       if (!gesture || e.pointerId !== gesture.pointerId || !gesture.from) return;
       const dx = e.clientX - gesture.x0, dy = e.clientY - gesture.y0;
-      if (!gesture.dragging && Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
+      if (!gesture.dragging && Math.hypot(dx, dy) <= gesture.slop) return;
       if (!gesture.dragging) {
         gesture.dragging = true;
-        gesture.els.forEach((el) => { el.classList.add('lift'); el.style.transition = 'none'; });
+        gesture.els.forEach((el, i) => { el.classList.add('lift'); el.style.transition = 'none'; el.style.zIndex = 1000 + i; });
       }
       gesture.els.forEach((el) => { el.style.transform = `translate(${dx}px, ${dy}px)`; });
     }

@@ -281,3 +281,51 @@ test('win modal', { skip }, async () => {
     assert.match(await page.eval(`document.getElementById('winMessage').textContent`), /Final Score: \d+/);
   } finally { await page.close(); }
 });
+
+// ---- review fixes ----
+
+test('dragged card stays on top of other cards', { skip }, async () => {
+  const page = await launch();
+  try {
+    await setPiles(page, { tableau: [['9d'], [], [], [], [], [], ['4c']] });
+    const a = await center(page, cardSel('9D')), b = await center(page, cardSel('4C'));
+    await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', clickCount: 1 });
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x, y: b.y, button: 'left', buttons: 1 });
+    await page.sleep(50);
+    assert.equal(await page.eval(`document.elementFromPoint(${b.x}, ${b.y}).closest('.card').dataset.card`), '9D');
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x, y: b.y, button: 'left', clickCount: 1 });
+  } finally { await page.close(); }
+});
+
+test('phone buttons stay on screen', { skip }, async () => {
+  for (const [w, h] of [[915, 360], [640, 300]]) {
+    const page = await launch({ width: w, height: h, mobile: true, touch: true });
+    try {
+      for (const sel of ['#buttons', '#stats']) {
+        const bottom = await page.eval(`document.querySelector('${sel}').getBoundingClientRect().bottom`);
+        assert.ok(bottom <= h, `${sel} ends at ${bottom} on ${w}x${h}`);
+      }
+    } finally { await page.close(); }
+  }
+});
+
+test('no browser zoom gestures outside dialogs', { skip }, async () => {
+  const page = await launch({ width: 844, height: 390, mobile: true, touch: true });
+  try {
+    assert.equal(await page.eval(`getComputedStyle(document.getElementById('app')).touchAction`), 'none');
+    assert.equal(await page.eval(`getComputedStyle(document.getElementById('settingsModal')).touchAction`), 'manipulation');
+  } finally { await page.close(); }
+});
+
+test('wobbly finger tap still taps', { skip }, async () => {
+  const page = await launch({ width: 844, height: 390, mobile: true, touch: true });
+  try {
+    await setPiles(page, { tableau: [['-5c', 'Ah']] });
+    const { x, y } = await center(page, cardSel('AH'));
+    await page.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    await page.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 6, y: y + 5 }] });
+    await page.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.sleep(250);
+    assert.deepEqual(await pileCodes(page, 'game.foundations[0]'), ['Ah']);
+  } finally { await page.close(); }
+});

@@ -274,3 +274,8 @@ test('countMoves keeps the original counting', () => {
   const s = stateWith({ waste: [c('Ah')], tableau: [[c('9s')], [c('8h')]] });
   assert.equal(K.countMoves(s), 5);
 });
+
+test('hint suggests a partial-run move that frees a card for a foundation', () => {
+  const s = stateWith({ foundations: [[c('Ah')]], tableau: [[c('2h'), c('8s')], [c('9d')]] });
+  assert.deepEqual(plain(K.hint(s)), { from: T(0, 1), to: toT(1) });
+});
