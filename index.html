@@ -448,6 +448,92 @@
     })();
     globalThis.Klondike = Klondike;
   </script>
+  <script id="klondike-cards">
+    // Card faces and backs as SVG strings (viewBox 250x350, ratio 1:1.4).
+    // J/Q/K figures are Byron Knoll's public-domain court art, recoloured, in cards/.
+    const ASSET_VERSION = '';
+    const KlondikeCards = (() => {
+      const RED = '#b3121f', INK = '#1b1b1b';
+      const SUIT = {
+        hearts: "M50 92 C22 68 2 48 2 28 C2 12 14 2 28 2 C38 2 46 8 50 17 C54 8 62 2 72 2 C86 2 98 12 98 28 C98 48 78 68 50 92Z",
+        diamonds: "M50 2 C60 20 74 36 92 50 C74 64 60 80 50 98 C40 80 26 64 8 50 C26 36 40 20 50 2Z",
+        spades: "M50 2 C64 22 98 40 98 62 C98 76 88 84 76 84 C66 84 58 79 54 72 C55 84 60 92 70 98 L30 98 C40 92 45 84 46 72 C42 79 34 84 24 84 C12 84 2 76 2 62 C2 40 36 22 50 2Z",
+        clubs: "M50 4 a21 21 0 1 1 -0.1 0Z M26 38 a21 21 0 1 1 -0.1 0Z M74 38 a21 21 0 1 1 -0.1 0Z M44 48 h12 v6 h-12z M45 60 C45 80 40 90 30 98 L70 98 C60 90 55 80 55 60Z",
+      };
+      const colour = (suit) => (suit === 'hearts' || suit === 'diamonds' ? RED : INK);
+      const L = 80, M = 125, R = 170;
+      const LAYOUT = {
+        'A': [[M, 175]],
+        '2': [[M, 72], [M, 278]],
+        '3': [[M, 72], [M, 175], [M, 278]],
+        '4': [[L, 72], [R, 72], [L, 278], [R, 278]],
+        '5': [[L, 72], [R, 72], [M, 175], [L, 278], [R, 278]],
+        '6': [[L, 72], [R, 72], [L, 175], [R, 175], [L, 278], [R, 278]],
+        '7': [[L, 72], [R, 72], [M, 123], [L, 175], [R, 175], [L, 278], [R, 278]],
+        '8': [[L, 72], [R, 72], [M, 123], [L, 175], [R, 175], [M, 227], [L, 278], [R, 278]],
+        '9': [[L, 72], [R, 72], [L, 141], [R, 141], [M, 175], [L, 209], [R, 209], [L, 278], [R, 278]],
+        '10': [[L, 72], [R, 72], [M, 106], [L, 141], [R, 141], [L, 209], [R, 209], [M, 244], [L, 278], [R, 278]],
+      };
+      const BACK_PALETTES = {
+        red: ['#8e1420', '#b52a35', '#f1e3c8'], blue: ['#14306e', '#2b4f9e', '#e6ecf7'], green: ['#0f4a2b', '#1f7046', '#efe6c9'],
+        black: ['#151515', '#2c2c2c', '#d9b65e'], purple: ['#3e1a5c', '#5d2f86', '#ecdcf5'],
+      };
+      const BACKS = Object.keys(BACK_PALETTES);
+
+      function pip(suit, x, y, size, flip, body) {
+        const k = size / 100;
+        return `<g${body ? ' data-pip' : ''} transform="translate(${x},${y}) ${flip ? 'rotate(180)' : ''} scale(${k}) translate(-50,-50)"><path d="${SUIT[suit]}" fill="${colour(suit)}"/></g>`;
+      }
+
+      function courtUrl(card) {
+        if (!['J', 'Q', 'K'].includes(card.rank)) return null;
+        return `cards/${card.rank}${card.suit[0].toUpperCase()}.svg${ASSET_VERSION}`;
+      }
+
+      // largeIndex: big rank and suit across the top for small (phone) cards,
+      // where only the top strip of an overlapped card shows.
+      function face(card, { largeIndex = false } = {}) {
+        const { rank, suit } = card, col = colour(suit);
+        let g = `<rect x="2" y="2" width="246" height="346" rx="18" fill="#fdfbf4" stroke="#9a9384" stroke-width="2"/>`;
+        if (largeIndex) {
+          g += `<text x="16" y="86" font-family="Georgia,serif" font-weight="700" font-size="${rank === '10' ? 78 : 92}" fill="${col}" letter-spacing="-6">${rank}</text>`;
+          g += pip(suit, 196, 52, 72);
+        } else {
+          const corner = (t) => `<g ${t}><text x="26" y="50" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="${rank === '10' ? 34 : 40}" fill="${col}" letter-spacing="-3">${rank}</text>${pip(suit, 26, 74, 26)}</g>`;
+          g += corner('') + corner('transform="rotate(180 125 175)"');
+        }
+        const url = courtUrl(card);
+        if (url) {
+          const [fx, fy, fw, fh] = largeIndex ? [50, 104, 150, 236] : [46, 50, 158, 250];
+          g += `<svg x="${fx}" y="${fy}" width="${fw}" height="${fh}" viewBox="23.5 24 124 197.5" preserveAspectRatio="xMidYMin slice"><image href="${url}" width="167.0869" height="242.667"/></svg>`;
+        } else {
+          const size = rank === 'A' ? (suit === 'spades' ? 110 : 80) : 46;
+          LAYOUT[rank].forEach(([x, y]) => {
+            const yy = largeIndex ? 120 + (y - 72) * 0.78 : 82 + (y - 72) * 0.903;
+            g += pip(suit, x, yy, largeIndex ? size * 0.85 : size, yy > 175 && rank !== 'A', true);
+          });
+        }
+        return `<svg viewBox="0 0 250 350" xmlns="http://www.w3.org/2000/svg">${g}</svg>`;
+      }
+
+      function back(name) {
+        const key = BACK_PALETTES[name] ? name : 'red';
+        const [dark, mid, light] = BACK_PALETTES[key];
+        return `<svg viewBox="0 0 250 350" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="back-${key}" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+          `<rect width="24" height="24" fill="${dark}"/><rect width="12" height="12" fill="${mid}"/><circle cx="18" cy="18" r="2.4" fill="${light}" opacity=".55"/></pattern></defs>` +
+          `<rect x="2" y="2" width="246" height="346" rx="18" fill="#fdfbf4" stroke="#9a9384" stroke-width="2"/>` +
+          `<rect x="14" y="14" width="222" height="322" rx="10" fill="url(#back-${key})"/>` +
+          `<rect x="22" y="22" width="206" height="306" rx="7" fill="none" stroke="${light}" stroke-width="2" opacity=".7"/>` +
+          `<ellipse cx="125" cy="175" rx="38" ry="52" fill="${dark}" stroke="${light}" stroke-width="3"/>` +
+          `<path d="M125 140 L145 175 L125 210 L105 175Z" fill="${light}" opacity=".85"/></svg>`;
+      }
+
+      const suitMark = (suit) => `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="${SUIT[suit]}" fill="#fff"/></svg>`;
+
+      return { BACKS, face, back, courtUrl, suitMark };
+    })();
+    globalThis.KlondikeCards = KlondikeCards;
+  </script>
   <script>
     let useSprite = false;
     const cardSprite = new Image();
