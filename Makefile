@@ -5,12 +5,12 @@ HOST ?= KAG
 DEPLOY_GAME ?= $(HOME)/Documents/D/WEB/LIVE/MAIN/GAMES/GNRL/DOMAIN/*.games/bin/deploy-game
 VERSION := $(shell git describe --always --dirty 2>/dev/null || date +%s)
 
-# The sprite sheet gets ?v=VERSION so browsers refetch it after a deploy;
-# index.html itself stays runnable straight from the folder.
+# Court card art in cards/ gets ?v=VERSION (via ASSET_VERSION) so browsers
+# refetch it after a deploy; index.html itself stays runnable from the folder.
 dist:
 	rm -rf dist && mkdir -p dist/web
-	sed 's/playingcards_standard\.png/&?v=$(VERSION)/g' index.html > dist/web/index.html
-	cp playingcards_standard.png dist/web/
+	sed "s/const ASSET_VERSION = '';/const ASSET_VERSION = '?v=$(VERSION)';/" index.html > dist/web/index.html
+	mkdir -p dist/web/cards && cp cards/*.svg dist/web/cards/
 	cp deploy/meta.json deploy/icon.svg dist/
 
 serve:
