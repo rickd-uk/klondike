@@ -364,7 +364,17 @@
         return base + bonus;
       }
 
-      return { SUITS, RANKS, newGame, canMove, move, draw, elapsedSeconds, score, isWon };
+      const canUndo = (state) => state.history.length > 0;
+      // Restores the position and move score; startedAt is kept so time already
+      // played still counts.
+      function undo(state) {
+        const prev = state.history.pop();
+        if (!prev) return false;
+        Object.assign(state, prev);
+        return true;
+      }
+
+      return { SUITS, RANKS, newGame, canMove, move, draw, undo, canUndo, elapsedSeconds, score, isWon };
     })();
     globalThis.Klondike = Klondike;
   </script>

@@ -177,3 +177,56 @@ test('win bonus is 700000 / seconds after 30 seconds', () => {
   K.move(quick, W, toF(2), 20_000);
   assert.equal(K.score(quick, 20_000), 10 - 4);
 });
+
+const piles = (s) => plain({ tableau: s.tableau, stock: s.stock, waste: s.waste, foundations: s.foundations });
+
+test('undo move restores board, face-down card and score', () => {
+  const s = stateWith({ tableau: [[down('5c'), c('As')]] });
+  const before = piles(s);
+  assert.equal(K.canUndo(s), false);
+  K.move(s, T(0, 1), toF(0), 0);
+  assert.equal(K.canUndo(s), true);
+  assert.equal(K.undo(s), true);
+  assert.deepEqual(piles(s), before);
+  assert.equal(s.tableau[0][0].faceUp, false);
+  assert.equal(s.moveScore, 0);
+});
+
+test('undo restores recycle order', () => {
+  const s = stateWith({ stock: ['Ac', '2c', '3c', '4c', '5c'].map(down), recycles: 2 });
+  K.draw(s, 0); K.draw(s, 0);
+  const before = piles(s);
+  assert.equal(K.draw(s, 0), 'recycled');
+  assert.equal(s.moveScore, -20);
+  K.undo(s);
+  assert.deepEqual(piles(s), before);
+  assert.equal(s.recycles, 2);
+  assert.equal(s.moveScore, 0);
+});
+
+test('undo chain back to the deal', () => {
+  const s = K.newGame({ deck: orderedDeck() });
+  const dealt = piles(s);
+  let actions = 0;
+  for (let i = 0; i < 5; i++) { K.draw(s, 0); actions++; }
+  assert.equal(actions, 5);
+  for (let i = 0; i < 5; i++) assert.equal(K.undo(s), true);
+  assert.deepEqual(piles(s), dealt);
+  assert.equal(K.undo(s), false);
+});
+
+test('undo after win clears win', () => {
+  const s = oneFromWon(0);
+  K.move(s, W, toF(2), 100_000);
+  K.undo(s);
+  assert.equal(K.isWon(s), false);
+  assert.equal(s.wonAt, null);
+  assert.equal(K.score(s, 100_000), 0);
+});
+
+test('undo keeps clock', () => {
+  const s = stateWith({ stock: [down('Ac')] });
+  K.draw(s, 5000);
+  K.undo(s);
+  assert.equal(s.startedAt, 5000);
+});
