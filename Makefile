@@ -11,6 +11,8 @@ dist:
 	rm -rf dist && mkdir -p dist/web
 	sed "s/const ASSET_VERSION = '';/const ASSET_VERSION = '?v=$(VERSION)';/" index.html > dist/web/index.html
 	mkdir -p dist/web/cards && cp cards/*.svg dist/web/cards/
+	# nginx serves these .gz copies to browsers that accept gzip (gzip_static on)
+	gzip -9 -k dist/web/index.html dist/web/cards/*.svg
 	cp deploy/meta.json deploy/icon.svg dist/
 
 serve:
