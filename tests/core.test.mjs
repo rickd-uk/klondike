@@ -230,3 +230,47 @@ test('undo keeps clock', () => {
   K.undo(s);
   assert.equal(s.startedAt, 5000);
 });
+
+test('tap prefers foundation', () => {
+  const s = stateWith({ waste: [c('2h')], foundations: [[c('Ah')]], tableau: [[c('3s')]] });
+  assert.deepEqual(plain(K.bestDestination(s, W)), toF(0));
+});
+
+test('tap moves run to first legal column', () => {
+  const s = stateWith({ tableau: [[down('4c'), c('9d'), c('8s')], [c('10h')], [c('10s')]] });
+  assert.deepEqual(plain(K.bestDestination(s, T(0, 1))), toT(2));
+});
+
+test('tap no pointless king move', () => {
+  assert.equal(K.bestDestination(stateWith({ tableau: [[c('Kh')]] }), T(0, 0)), null);
+  const s = stateWith({ tableau: [[down('2c'), c('Kh')]] });
+  assert.deepEqual(plain(K.bestDestination(s, T(0, 1))), toT(1));
+});
+
+test('tap from foundation', () => {
+  const ok = stateWith({ foundations: [[c('Ah'), c('2h')]], tableau: [[c('3s')]] });
+  assert.deepEqual(plain(K.bestDestination(ok, F(0))), toT(0));
+  const none = stateWith({ foundations: [[c('Ah'), c('2h')]], tableau: [[c('3h')]] });
+  assert.equal(K.bestDestination(none, F(0)), null);
+});
+
+test('hint tiers', () => {
+  const tier1 = stateWith({ waste: [c('Ah')], tableau: [[down('5c'), c('8s')], [c('9h')]] });
+  assert.deepEqual(plain(K.hint(tier1)), { from: T(0, 1), to: toT(1) });
+  const tier1f = stateWith({ tableau: [[down('5c'), c('As')]] });
+  assert.deepEqual(plain(K.hint(tier1f)), { from: T(0, 1), to: toF(0) });
+  const tier2 = stateWith({ waste: [c('Ah')], tableau: [[c('9h')], [c('8s')]] });
+  assert.deepEqual(plain(K.hint(tier2)), { from: W, to: toF(0) });
+  const tier3 = stateWith({ waste: [c('8h')], tableau: [[c('9s')]] });
+  assert.deepEqual(plain(K.hint(tier3)), { from: W, to: toT(0) });
+  const tier4 = stateWith({ tableau: [[c('9h')], [c('8s')]] });
+  assert.deepEqual(plain(K.hint(tier4)), { from: T(1, 0), to: toT(0) });
+  const backAndForth = stateWith({ tableau: [[c('10d'), c('9s')], [c('10h')]], stock: [down('Ac')] });
+  assert.deepEqual(plain(K.hint(backAndForth)), { draw: true });
+  assert.equal(K.hint(stateWith({ tableau: [[c('Kh')], [c('9s')]] })), null);
+});
+
+test('countMoves keeps the original counting', () => {
+  const s = stateWith({ waste: [c('Ah')], tableau: [[c('9s')], [c('8h')]] });
+  assert.equal(K.countMoves(s), 5);
+});

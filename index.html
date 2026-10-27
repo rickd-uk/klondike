@@ -374,7 +374,77 @@
         return true;
       }
 
-      return { SUITS, RANKS, newGame, canMove, move, draw, undo, canUndo, elapsedSeconds, score, isWon };
+      const FOUNDATIONS = [0, 1, 2, 3].map((index) => ({ pile: 'foundation', index }));
+      const COLUMNS = [0, 1, 2, 3, 4, 5, 6].map((index) => ({ pile: 'tableau', index }));
+      const WASTE = { pile: 'waste' };
+      const firstLegal = (state, from, dests) => dests.find((to) => canMove(state, from, to)) || null;
+      const isTopCard = (state, from) => from.pile === 'waste' ||
+        (from.pile === 'tableau' && from.cardIndex === state.tableau[from.index].length - 1);
+
+      // Where a tap sends a card: foundation first (single cards), then a
+      // non-empty column, then an empty one (never a king already at the base).
+      function bestDestination(state, from) {
+        if (!pickUp(state, from)) return null;
+        const dests = [];
+        if (from.pile !== 'foundation' && isTopCard(state, from)) dests.push(...FOUNDATIONS);
+        dests.push(...COLUMNS.filter((to) => state.tableau[to.index].length));
+        if (!(from.pile === 'tableau' && from.cardIndex === 0)) dests.push(...COLUMNS.filter((to) => !state.tableau[to.index].length));
+        return firstLegal(state, from, dests);
+      }
+
+      function hint(state) {
+        const columnFrom = (i) => {
+          const ci = state.tableau[i].findIndex((card) => card.faceUp);
+          return ci < 0 ? null : { pile: 'tableau', index: i, cardIndex: ci };
+        };
+        const tiers = [
+          // 1. moves that turn over a face-down card
+          () => COLUMNS.map((col) => {
+            const from = columnFrom(col.index);
+            if (!from || from.cardIndex === 0) return null;
+            const dests = (isTopCard(state, from) ? FOUNDATIONS : []).concat(COLUMNS);
+            const to = firstLegal(state, from, dests);
+            return to && { from, to };
+          }),
+          // 2. anything to a foundation
+          () => COLUMNS.map((col) => {
+            const pile = state.tableau[col.index];
+            const from = { pile: 'tableau', index: col.index, cardIndex: pile.length - 1 };
+            const to = pile.length ? firstLegal(state, from, FOUNDATIONS) : null;
+            return to && { from, to };
+          }).concat([firstLegal(state, WASTE, FOUNDATIONS) && { from: WASTE, to: firstLegal(state, WASTE, FOUNDATIONS) }]),
+          // 3. waste to tableau
+          () => { const to = firstLegal(state, WASTE, COLUMNS); return [to && { from: WASTE, to }]; },
+          // 4. whole columns onto another column (frees a column)
+          () => COLUMNS.map((col) => {
+            const from = columnFrom(col.index);
+            if (!from || from.cardIndex !== 0) return null;
+            const to = firstLegal(state, from, COLUMNS.filter((d) => state.tableau[d.index].length));
+            return to && { from, to };
+          }),
+        ];
+        for (const tier of tiers) {
+          const found = tier().find(Boolean);
+          if (found) return found;
+        }
+        return state.stock.length || state.waste.length ? { draw: true } : null;
+      }
+
+      // Same counting as the original game: the waste top and each column's top
+      // card against every foundation and every other column.
+      function countMoves(state) {
+        const sources = [];
+        if (state.waste.length) sources.push({ card: top(state.waste), skip: null });
+        state.tableau.forEach((pile, i) => { if (pile.length) sources.push({ card: top(pile), skip: i }); });
+        let count = 0;
+        sources.forEach(({ card, skip }) => {
+          FOUNDATIONS.forEach((to) => { if (accepts(state, [card], to)) count++; });
+          COLUMNS.forEach((to) => { if (to.index !== skip && accepts(state, [card], to)) count++; });
+        });
+        return count;
+      }
+
+      return { SUITS, RANKS, newGame, canMove, move, draw, undo, canUndo, bestDestination, hint, countMoves, elapsedSeconds, score, isWon };
     })();
     globalThis.Klondike = Klondike;
   </script>
