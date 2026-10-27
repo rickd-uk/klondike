@@ -680,12 +680,173 @@
       document.getElementById('winModal').style.display = 'flex';
     }
 
-    // ---- stock (pointer input arrives in the next step) ----
-    table.addEventListener('click', (e) => {
-      if (!game || !e.target.closest('[data-pile="stock"]')) return;
-      Klondike.draw(game);
+    // ---- moves and animation ----
+    const ANIM_MS = 180, DRAG_THRESHOLD = 6;
+
+    function captureRects() {
+      const rects = new Map();
+      table.querySelectorAll('.card').forEach((el) => rects.set(el.dataset.card, el.getBoundingClientRect()));
+      return rects;
+    }
+    // FLIP: cards start where they were drawn before the change and slide home.
+    function animateFrom(prev) {
+      table.querySelectorAll('.card').forEach((el) => {
+        const was = prev.get(el.dataset.card);
+        if (!was) return;
+        const now = el.getBoundingClientRect();
+        const dx = was.left - now.left, dy = was.top - now.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+        el.style.transition = 'none';
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+        el.getBoundingClientRect();
+        el.style.transition = `transform ${ANIM_MS}ms ease-out`;
+        el.style.transform = '';
+        // While sliding, a card must not catch taps meant for what it passes over (e.g. the stock).
+        el.style.pointerEvents = 'none';
+        setTimeout(() => { el.style.pointerEvents = ''; }, ANIM_MS);
+      });
+    }
+    // Runs a state change; re-renders and animates only when it happened.
+    function act(change) {
+      if (!game) return false;
+      const prev = captureRects();
+      if (!change()) return false;
       render();
+      animateFrom(prev);
+      checkWin();
+      return true;
+    }
+    function shake(el) {
+      el.classList.remove('shake');
+      el.getBoundingClientRect();
+      el.classList.add('shake');
+      setTimeout(() => el.classList.remove('shake'), 300);
+    }
+
+    // ---- pointer input: drag, or tap to send a card to its best spot ----
+    function locOf(el) {
+      const pile = el.dataset.pile;
+      if (pile === 'tableau') return { pile, index: Number(el.dataset.index), cardIndex: Number(el.dataset.cardIndex) };
+      if (pile === 'waste') return { pile };
+      if (pile === 'foundation' && el.classList.contains('card')) return { pile, index: Number(el.dataset.index) };
+      return null;
+    }
+    function runEls(from) {
+      if (from.pile !== 'tableau') return [table.querySelector(`.card[data-pile="${from.pile}"]` + (from.pile === 'foundation' ? `[data-index="${from.index}"]` : ''))];
+      return [...table.querySelectorAll(`.card[data-pile="tableau"][data-index="${from.index}"]`)]
+        .filter((el) => Number(el.dataset.cardIndex) >= from.cardIndex);
+    }
+    function dropTarget(x, y) {
+      for (const el of document.elementsFromPoint(x, y)) {
+        if (!table.contains(el) || el.classList.contains('lift')) continue;
+        const pile = el.dataset.pile;
+        if (pile === 'tableau' || pile === 'foundation') return { pile, index: Number(el.dataset.index) };
+      }
+      return null;
+    }
+
+    let gesture = null;
+    function onPointerDown(e) {
+      if (gesture || !game || e.button > 0) return;
+      const el = e.target.closest('.card, .slot');
+      if (!el) return;
+      const base = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, el, dragging: false, vw: window.innerWidth, vh: window.innerHeight };
+      if (el.dataset.pile === 'stock') gesture = { ...base, stock: true };
+      else {
+        const from = el.classList.contains('face-up') ? locOf(el) : null;
+        if (!from) return;
+        gesture = { ...base, from, els: runEls(from) };
+      }
+      e.preventDefault();
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerCancel);
+    }
+    function onPointerMove(e) {
+      if (!gesture || e.pointerId !== gesture.pointerId || !gesture.from) return;
+      const dx = e.clientX - gesture.x0, dy = e.clientY - gesture.y0;
+      if (!gesture.dragging && Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
+      if (!gesture.dragging) {
+        gesture.dragging = true;
+        gesture.els.forEach((el) => { el.classList.add('lift'); el.style.transition = 'none'; });
+      }
+      gesture.els.forEach((el) => { el.style.transform = `translate(${dx}px, ${dy}px)`; });
+    }
+    function endGesture() {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+      const g = gesture;
+      gesture = null;
+      return g;
+    }
+    function springBack(els) {
+      els.forEach((el) => {
+        el.style.transition = `transform ${ANIM_MS}ms ease-out`;
+        el.style.transform = '';
+        setTimeout(() => el.classList.remove('lift'), ANIM_MS);
+      });
+    }
+    function onPointerUp(e) {
+      if (!gesture || e.pointerId !== gesture.pointerId) return;
+      // A rotation or resize mid-gesture abandons it, even if no resize event arrived.
+      if (gesture.vw !== window.innerWidth || gesture.vh !== window.innerHeight) { cancelGesture(); relayout(); return; }
+      const g = endGesture();
+      if (g.stock) { act(() => Klondike.draw(game) !== 'empty'); return; }
+      if (g.dragging) {
+        const to = dropTarget(e.clientX, e.clientY);
+        if (!(to && act(() => Klondike.move(game, g.from, to)))) springBack(g.els);
+        return;
+      }
+      const to = Klondike.bestDestination(game, g.from);
+      if (!(to && act(() => Klondike.move(game, g.from, to)))) shake(g.el);
+    }
+    function onPointerCancel(e) {
+      if (!gesture || e.pointerId !== gesture.pointerId) return;
+      cancelGesture();
+    }
+    function cancelGesture() {
+      const g = endGesture();
+      if (g && g.dragging) springBack(g.els);
+    }
+    table.addEventListener('pointerdown', onPointerDown);
+
+    // ---- undo and hint ----
+    const undo = () => act(() => Klondike.undo(game));
+    document.getElementById('undoBtn').addEventListener('click', undo);
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        undo();
+      }
     });
+
+    let toastTimer = null;
+    function toast(text) {
+      const el = document.getElementById('toast');
+      el.textContent = text;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 1500);
+    }
+    let hintTimer = null;
+    function showHint() {
+      if (!game) return;
+      table.querySelectorAll('.hint-glow').forEach((el) => el.classList.remove('hint-glow'));
+      clearTimeout(hintTimer);
+      const h = Klondike.hint(game);
+      if (!h) { toast('No moves left'); return; }
+      let els;
+      if (h.draw) els = [table.querySelector('.card[data-pile="stock"]') || table.querySelector('.slot[data-pile="stock"]')];
+      else {
+        const pileTop = table.querySelector(`.card[data-pile="${h.to.pile}"][data-index="${h.to.index}"]` +
+          (h.to.pile === 'tableau' ? `[data-card-index="${game.tableau[h.to.index].length - 1}"]` : ''));
+        els = runEls(h.from).concat([pileTop || table.querySelector(`.slot[data-pile="${h.to.pile}"][data-index="${h.to.index}"]`)]);
+      }
+      els.filter(Boolean).forEach((el) => el.classList.add('hint-glow'));
+      hintTimer = setTimeout(() => table.querySelectorAll('.hint-glow').forEach((el) => el.classList.remove('hint-glow')), 1500);
+    }
+    document.getElementById('hintBtn').addEventListener('click', showHint);
 
     // ---- settings ----
     const settingsModal = document.getElementById('settingsModal');
@@ -737,8 +898,9 @@
     document.getElementById('playAgain').addEventListener('click', () => newGame());
     document.getElementById('exitGame').addEventListener('click', () => { window.onbeforeunload = null; quitGame(); });
 
-    window.addEventListener('resize', () => { applyLayout(); render(); });
-    window.addEventListener('orientationchange', () => { applyLayout(); render(); });
+    function relayout() { cancelGesture(); applyLayout(); render(); }
+    window.addEventListener('resize', relayout);
+    window.addEventListener('orientationchange', relayout);
     setInterval(() => { if (game && game.startedAt !== null && game.wonAt === null) updateStatus(); }, 1000);
 
     applyLayout();
