@@ -228,6 +228,146 @@
       <div class="tableau-pile" id="tableau-6"></div>
     </div>
   </div>
+  <script id="klondike-core">
+    // Klondike rules, traditional (Windows-style) scoring and undo.
+    // Pure: no DOM. Unit-tested under Node via tests/load.mjs.
+    const Klondike = (() => {
+      const SUITS = ['clubs', 'diamonds', 'hearts', 'spades'];
+      const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+      const SCORE = { wasteToTableau: 5, toFoundation: 10, turnOver: 5, foundationToTableau: -15, recycle1: -100, recycle3: -20 };
+
+      const rankValue = (r) => RANKS.indexOf(r) + 1;
+      const isRed = (card) => card.suit === 'hearts' || card.suit === 'diamonds';
+      const top = (pile) => pile[pile.length - 1];
+
+      function shuffle(d) {
+        for (let i = d.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [d[i], d[j]] = [d[j], d[i]];
+        }
+        return d;
+      }
+
+      function newGame({ drawCount = 3, deck } = {}) {
+        const cards = (deck || shuffle(SUITS.flatMap((suit) => RANKS.map((rank) => ({ suit, rank }))))).map((card) => ({ suit: card.suit, rank: card.rank, faceUp: false }));
+        const tableau = [[], [], [], [], [], [], []];
+        let idx = 0;
+        for (let i = 0; i < 7; i++) {
+          for (let j = 0; j <= i; j++) {
+            const card = cards[idx++];
+            card.faceUp = j === i;
+            tableau[i].push(card);
+          }
+        }
+        return { tableau, stock: cards.slice(idx), waste: [], foundations: [[], [], [], []], drawCount, moveScore: 0, recycles: 0, startedAt: null, wonAt: null, history: [] };
+      }
+
+      // The cards a move would pick up, or null when `from` can't be picked up.
+      function pickUp(state, from) {
+        if (from.pile === 'waste') return state.waste.length ? [top(state.waste)] : null;
+        if (from.pile === 'foundation') {
+          const f = state.foundations[from.index];
+          return f && f.length && top(f).rank !== 'A' ? [top(f)] : null;
+        }
+        if (from.pile === 'tableau') {
+          const pile = state.tableau[from.index];
+          const card = pile && pile[from.cardIndex];
+          return card && card.faceUp ? pile.slice(from.cardIndex) : null;
+        }
+        return null;
+      }
+
+      function accepts(state, cards, to) {
+        const first = cards[0];
+        if (to.pile === 'tableau') {
+          const pile = state.tableau[to.index];
+          if (!pile) return false;
+          if (!pile.length) return first.rank === 'K';
+          const t = top(pile);
+          return t.faceUp && isRed(t) !== isRed(first) && rankValue(first.rank) + 1 === rankValue(t.rank);
+        }
+        if (to.pile === 'foundation') {
+          const f = state.foundations[to.index];
+          if (!f || cards.length !== 1) return false;
+          if (!f.length) return first.rank === 'A';
+          return top(f).suit === first.suit && rankValue(first.rank) === rankValue(top(f).rank) + 1;
+        }
+        return false;
+      }
+
+      function canMove(state, from, to) {
+        if (from.pile === to.pile && from.index === to.index) return false;
+        if (from.pile === 'foundation' && to.pile === 'foundation') return false;
+        const cards = pickUp(state, from);
+        return !!cards && accepts(state, cards, to);
+      }
+
+      const copyCards = (pile) => pile.map((card) => ({ suit: card.suit, rank: card.rank, faceUp: card.faceUp }));
+      function snapshot(state) {
+        state.history.push({
+          tableau: state.tableau.map(copyCards), stock: copyCards(state.stock), waste: copyCards(state.waste),
+          foundations: state.foundations.map(copyCards), moveScore: state.moveScore, recycles: state.recycles, wonAt: state.wonAt,
+        });
+      }
+
+      function start(state, now) { if (state.startedAt === null) state.startedAt = now; }
+
+      function move(state, from, to, now = Date.now()) {
+        if (!canMove(state, from, to)) return false;
+        snapshot(state);
+        start(state, now);
+        let cards;
+        if (from.pile === 'waste') cards = [state.waste.pop()];
+        else if (from.pile === 'foundation') cards = [state.foundations[from.index].pop()];
+        else cards = state.tableau[from.index].splice(from.cardIndex);
+        const dest = to.pile === 'tableau' ? state.tableau[to.index] : state.foundations[to.index];
+        dest.push(...cards);
+
+        if (to.pile === 'foundation') state.moveScore += SCORE.toFoundation;
+        else if (from.pile === 'waste') state.moveScore += SCORE.wasteToTableau;
+        else if (from.pile === 'foundation') state.moveScore += SCORE.foundationToTableau;
+        if (from.pile === 'tableau') {
+          const exposed = top(state.tableau[from.index]);
+          if (exposed && !exposed.faceUp) { exposed.faceUp = true; state.moveScore += SCORE.turnOver; }
+        }
+        if (isWon(state)) state.wonAt = now;
+        return true;
+      }
+
+      function draw(state, now = Date.now()) {
+        if (!state.stock.length && !state.waste.length) return 'empty';
+        snapshot(state);
+        start(state, now);
+        if (state.stock.length) {
+          state.stock.splice(0, state.drawCount).forEach((card) => { card.faceUp = true; state.waste.push(card); });
+          return 'dealt';
+        }
+        state.stock = state.waste.map((card) => { card.faceUp = false; return card; });
+        state.waste = [];
+        state.recycles++;
+        if (state.drawCount === 1) state.moveScore += SCORE.recycle1;
+        else if (state.recycles >= 3) state.moveScore += SCORE.recycle3;
+        return 'recycled';
+      }
+
+      const isWon = (state) => state.foundations.every((f) => f.length === 13);
+
+      function elapsedSeconds(state, now) {
+        if (state.startedAt === null) return 0;
+        return Math.max(0, Math.floor(((state.wonAt ?? now) - state.startedAt) / 1000));
+      }
+
+      function score(state, now) {
+        const secs = elapsedSeconds(state, now);
+        const base = Math.max(0, state.moveScore - 2 * Math.floor(secs / 10));
+        const bonus = state.wonAt !== null && secs > 30 ? Math.round(700000 / secs) : 0;
+        return base + bonus;
+      }
+
+      return { SUITS, RANKS, newGame, canMove, move, draw, elapsedSeconds, score, isWon };
+    })();
+    globalThis.Klondike = Klondike;
+  </script>
   <script>
     let useSprite = false;
     const cardSprite = new Image();
